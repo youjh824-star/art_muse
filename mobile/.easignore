@@ -1,0 +1,19 @@
+# EAS upload ignore (embedded-web 은 preview 빌드에 필요 — 제외하지 않음)
+# android/ios 는 로컬 prebuild 결과(Windows local.properties 등) — EAS에서 새로 생성
+android/
+ios/
+node_modules/
+.expo/
+.env
+.env.local
+.env*.local
+google-services.json
+play-store-service-account.json
+*.p8
+*.jks
+.expo-test-export/
+.expo-sdk54-test/
+.expo-verify/
+.expo-push-test/
+.expo-camera-test/
+.expo-deploy-test/

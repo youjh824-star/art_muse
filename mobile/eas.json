@@ -1,0 +1,88 @@
+{
+  "cli": {
+    "version": ">= 13.0.0",
+    "appVersionSource": "remote",
+    "requireCommit": false
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": { "simulator": true },
+      "android": { "buildType": "apk" },
+      "env": {
+        "APP_VARIANT": "admin",
+        "EXPO_PUBLIC_WEB_APP_URL": "http://127.0.0.1:5174",
+        "EXPO_NO_METRO_LAZY": "1"
+      }
+    },
+    "preview-admin": {
+      "distribution": "internal",
+      "environment": "preview",
+      "android": { "buildType": "apk" },
+      "ios": { "simulator": false },
+      "env": {
+        "USE_EMBEDDED_WEB": "1",
+        "APP_VARIANT": "admin",
+        "EXPO_NO_METRO_LAZY": "1"
+      }
+    },
+    "preview-parent": {
+      "distribution": "internal",
+      "environment": "preview",
+      "android": { "buildType": "apk" },
+      "ios": { "simulator": false },
+      "env": {
+        "USE_EMBEDDED_WEB": "1",
+        "APP_VARIANT": "parent",
+        "EXPO_NO_METRO_LAZY": "1"
+      }
+    },
+    "production-admin": {
+      "autoIncrement": true,
+      "distribution": "store",
+      "android": { "buildType": "app-bundle" },
+      "ios": { "resourceClass": "m-medium" },
+      "env": {
+        "USE_EMBEDDED_WEB": "1",
+        "APP_VARIANT": "admin",
+        "EXPO_NO_METRO_LAZY": "1"
+      }
+    },
+    "production-parent": {
+      "autoIncrement": true,
+      "distribution": "store",
+      "android": { "buildType": "app-bundle" },
+      "ios": { "resourceClass": "m-medium" },
+      "env": {
+        "USE_EMBEDDED_WEB": "1",
+        "APP_VARIANT": "parent",
+        "EXPO_NO_METRO_LAZY": "1"
+      }
+    }
+  },
+  "submit": {
+    "production-admin": {
+      "ios": {
+        "appleId": "your-apple-id@example.com",
+        "ascAppId": "0000000000",
+        "appleTeamId": "XXXXXXXXXX"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./play-store-service-account.json",
+        "track": "internal"
+      }
+    },
+    "production-parent": {
+      "ios": {
+        "appleId": "your-apple-id@example.com",
+        "ascAppId": "0000000001",
+        "appleTeamId": "XXXXXXXXXX"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./play-store-service-account.json",
+        "track": "internal"
+      }
+    }
+  }
+}

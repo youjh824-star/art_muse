@@ -1,0 +1,50 @@
+{
+  "name": "artlog-demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:admin": "vite --mode admin",
+    "dev:parent": "vite --mode parent",
+    "build": "vite build",
+    "build:admin": "vite build --mode admin",
+    "build:parent": "vite build --mode parent",
+    "build:mobile:web": "vite build --mode mobile",
+    "build:mobile:admin": "vite build --mode mobile-admin",
+    "build:mobile:parent": "vite build --mode mobile-parent",
+    "build:mobile:admin:v2": "vite build --mode mobile-admin-v2",
+    "build:mobile:parent:v2": "vite build --mode mobile-parent-v2",
+    "dev:v2": "vite --open index-v2.html",
+    "preview": "vite preview",
+    "mobile": "cd mobile && npm run start:dev:win",
+    "mobile:usb": "cd mobile && npm run android:usb",
+    "mobile:metro": "cd mobile && npm run dev:metro",
+    "mobile:emu": "cd mobile && npm run android:emu",
+    "mobile:tunnel": "cd mobile && npm run start:tunnel",
+    "mobile:install": "cd mobile && npm install",
+    "mobile:bundle": "cd mobile && npm run bundle:web:admin",
+    "mobile:bundle:admin": "cd mobile && npm run bundle:web:admin",
+    "mobile:bundle:parent": "cd mobile && npm run bundle:web:parent",
+    "mobile:build:preview": "cd mobile && npm run build:preview:admin",
+    "mobile:build:preview:admin": "cd mobile && npm run build:preview:admin",
+    "mobile:build:preview:parent": "cd mobile && npm run build:preview:parent",
+    "mobile:build:preview:admin:ios": "cd mobile && npm run build:preview:admin:ios",
+    "mobile:build:preview:parent:ios": "cd mobile && npm run build:preview:parent:ios",
+    "mobile:build:production:admin": "cd mobile && npm run build:production:admin",
+    "mobile:build:production:parent": "cd mobile && npm run build:production:parent",
+    "mobile:build:production": "cd mobile && npm run build:production"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.106.2",
+    "@tanstack/react-query": "^5.100.14",
+    "docx": "^9.7.1",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.5.2",
+    "vite": "^6.3.5"
+  }
+}

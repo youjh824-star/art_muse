@@ -1,0 +1,17 @@
+export const queryKeys = {
+  session: ["auth", "session"],
+  profile: (userId) => ["auth", "profile", userId],
+  academy: (academyId) => ["academy", academyId],
+  academyOptions: (academyId) => ["academy-options", academyId],
+  students: (academyId) => ["students", academyId],
+  student: (id) => ["student", id],
+  artworks: (academyId) => ["artworks", academyId],
+  feedbacks: (academyId) => ["feedbacks", academyId],
+  notices: (academyId) => ["notices", academyId],
+  schedules: (academyId) => ["schedules", academyId],
+  invites: (academyId) => ["invites", academyId],
+  linkedParents: (academyId) => ["linked-parents", academyId],
+  disconnectedParents: (academyId) => ["disconnected-parents", academyId],
+  attendance: (academyId, date) => ["attendance", academyId, date ?? "all"],
+  parentLinks: (userId) => ["parent-links", userId],
+};

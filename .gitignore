@@ -1,0 +1,37 @@
+﻿# Dependencies
+node_modules/
+mobile/node_modules/
+
+# Build outputs
+dist/
+mobile/embedded-web-admin/
+mobile/embedded-web-parent/
+mobile/android/
+mobile/ios/
+
+# Env files (contains secrets)
+.env
+.env.*
+!.env.example
+mobile/.env
+mobile/.env.*
+!mobile/.env.example
+
+# Claude Code settings
+.claude/
+
+# Expo
+mobile/.expo/
+mobile/expo-env.d.ts
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.log
+
+# APK outputs
+*.apk
+*.aab

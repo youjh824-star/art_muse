@@ -1,0 +1,28 @@
+# Dependencies & build output
+node_modules/
+embedded-web/
+embedded-web-admin/
+embedded-web-parent/
+
+# Android build artifacts
+android/.gradle/
+android/build/
+android/app/build/
+*.apk
+*.aab
+
+# Release artifacts (use EAS or CI for distribution)
+releases/
+
+# Expo test directories
+.expo/
+.expo-*/
+
+# Secrets — do not commit
+google-services.json
+play-store-service-account.json
+*.p8
+*.jks
+.env
+.env.local
+.env*.local
