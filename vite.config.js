@@ -2,8 +2,8 @@ import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 
 function resolveAppRole(mode, env) {
-  if (mode === "admin" || mode === "mobile-admin" || mode === "mobile-admin-v2") return "admin";
-  if (mode === "parent" || mode === "mobile-parent" || mode === "mobile-parent-v2") return "parent";
+  if (mode === "admin" || mode === "mobile-admin" || mode === "mobile-admin-v2" || mode === "web-admin-v2") return "admin";
+  if (mode === "parent" || mode === "mobile-parent" || mode === "mobile-parent-v2" || mode === "web-parent-v2") return "parent";
   return env.VITE_APP_ROLE || "";
 }
 

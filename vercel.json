@@ -1,0 +1,5 @@
+{
+  "buildCommand": "npm run build -- --mode web-admin-v2",
+  "outputDirectory": "dist",
+  "rewrites": [{ "source": "/(.*)", "destination": "/index-v2.html" }]
+}
