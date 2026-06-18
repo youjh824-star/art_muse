@@ -773,7 +773,7 @@ function formatMonthTabLabel(monthKey) {
   return `${Number(m)}월`;
 }
 
-const getAttendStatus = (map,s,t) => map[attendKey(s.id,t)]??(s.classDay.includes(todayDowCode())?s.status:null);
+const getAttendStatus = (map,s,t) => map[attendKey(s.id,t)]??((s.classDay??[]).includes(todayDowCode())?s.status:null);
 
 function currentMonthKey(date = new Date()) {
   return date.toISOString().slice(0, 7);
@@ -1342,7 +1342,7 @@ const AdminHome=({students,schedules,notices,feedbacks,onAttendTap,onNavigate,at
   const todayCode=todayDowCode();
   const todayStr=new Date().toISOString().slice(0,10);
   const closedToday=isAcademyClosedOnDate(schedules,todayStr);
-  const todayStudents=closedToday?[]:students.filter(s=>s.classDay.includes(todayCode));
+  const todayStudents=closedToday?[]:students.filter(s=>(s.classDay??[]).includes(todayCode));
   const activeStudents=activeTime?getActiveAttendanceStudents({
     students,schedules,dateStr:todayStr,dowCode:todayCode,activeTime,
   }):[];
@@ -2002,9 +2002,11 @@ const ExamScoreManager = ({ student, academyId }) => {
   };
   const handleDelete = async (id) => {
     if (!window.confirm("이 기록을 삭제할까요?")) return;
-    const sb = requireSupabase();
-    await sb.from("exam_scores").delete().eq("id", id);
-    setScores(prev => prev.filter(s => s.id !== id));
+    try {
+      const sb = requireSupabase();
+      await sb.from("exam_scores").delete().eq("id", id);
+      setScores(prev => prev.filter(s => s.id !== id));
+    } catch(e) { showAlert("삭제 실패: " + e.message); }
   };
 
   const latest = scores[0];
@@ -2168,9 +2170,11 @@ const ConsultationDiary = ({ student, academyId }) => {
   };
   const handleDelete = async (id) => {
     if (!window.confirm("이 상담 일지를 삭제할까요?")) return;
-    const sb = requireSupabase();
-    await sb.from("consultations").delete().eq("id", id);
-    setConsultations(prev => prev.filter(c => c.id !== id));
+    try {
+      const sb = requireSupabase();
+      await sb.from("consultations").delete().eq("id", id);
+      setConsultations(prev => prev.filter(c => c.id !== id));
+    } catch(e) { showAlert("삭제 실패: " + e.message); }
   };
   const startEdit = (c) => {
     setForm({ consult_date:c.consult_date, content:c.content });
@@ -2277,7 +2281,7 @@ const StudentDetail=({student,feedbacks,artworks,academy,attendanceRecords=[],on
       <div style={{padding:16}}>
         {tab==="info"&&(
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
-            <Card>{[["성별",genderLabel(student.gender)],["학부",deptLabel(getDept(student.grade))],["수업 시간",student.classTime??"15:00"],["수업 요일",student.classDay.map(dayName).join(", ")],["학생 연락처",student.phone||"-"],["학부모 연락처",student.parentPhone||student.phone||"-"],["등록일",student.enroll],["결제일",`매월 ${student.feeDueDay}일`],["월 수강료",fmtMoney(student.monthlyFee)],["결제 현황",student.fee]].map(([k,v])=>(
+            <Card>{[["성별",genderLabel(student.gender)],["학부",deptLabel(getDept(student.grade))],["수업 시간",student.classTime??"15:00"],["수업 요일",(student.classDay??[]).map(dayName).join(", ")],["학생 연락처",student.phone||"-"],["학부모 연락처",student.parentPhone||student.phone||"-"],["등록일",student.enroll],["결제일",`매월 ${student.feeDueDay}일`],["월 수강료",fmtMoney(student.monthlyFee)],["결제 현황",student.fee]].map(([k,v])=>(
               <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${C.beige}`}}>
                 <span style={{fontSize:13,color:C.warm}}>{k}</span><span style={{fontSize:13,fontWeight:600,color:C.charcoal}}>{v}</span>
               </div>
@@ -2921,6 +2925,8 @@ const AdminPayments=({students,onUpdateStudent,linkedParents,onSendUnpaidReminde
       await onUpdateStudent(payModalStudent.id,{ feePayments, ...syncFields });
       setPayModal(null);
       setPayMethod(null);
+    }catch(e){
+      showAlert("저장 실패: " + e.message);
     }finally{
       setSaving(false);
     }
@@ -2932,6 +2938,8 @@ const AdminPayments=({students,onUpdateStudent,linkedParents,onSendUnpaidReminde
     try{
       const ok=await onSendUnpaidReminder(payModalStudent);
       if(ok) showAlert(`${payModalStudent.name} 학부모에게 미납 공지를 등록했습니다. 학부모 앱에서 공지·알림으로 전달됩니다.`);
+    }catch(e){
+      showAlert("미납 공지 발송 실패: " + e.message);
     }finally{
       setSendingReminder(false);
     }
@@ -5374,7 +5382,7 @@ const ParentAccountManager = ({ students, linkedParents, disconnectedParents, in
 
   const unlinkedStudents = students.filter(s =>
     !linkedStudentIds.has(String(s.id)) &&
-    !invites.filter(i=>!i.used && new Date(i.expiresAt) > new Date()).some(i => String(i.studentId) === String(s.id))
+    !invites.filter(i=>!i.used && new Date(`${i.expiresAt}T23:59:59`) > new Date()).some(i => String(i.studentId) === String(s.id))
   );
 
   const generateInvite = async () => {
