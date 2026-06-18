@@ -1,6 +1,51 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { requireSupabase } from "../lib/supabase.js";
 
+export function useLatestMessagesByStudent(academyId) {
+  return useQuery({
+    queryKey: ["messages_latest", academyId],
+    queryFn: async () => {
+      const sb = requireSupabase();
+      const { data, error } = await sb
+        .from("messages")
+        .select("*")
+        .eq("academy_id", academyId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      const map = {};
+      for (const m of (data ?? [])) {
+        if (!map[m.student_id]) map[m.student_id] = m;
+      }
+      return map;
+    },
+    enabled: !!academyId,
+    refetchInterval: 6000,
+  });
+}
+
+export function useUnreadCountByStudent(academyId) {
+  return useQuery({
+    queryKey: ["messages_unread", academyId],
+    queryFn: async () => {
+      const sb = requireSupabase();
+      const { data, error } = await sb
+        .from("messages")
+        .select("student_id")
+        .eq("academy_id", academyId)
+        .eq("sender_role", "parent")
+        .eq("is_read", false);
+      if (error) throw error;
+      const counts = {};
+      for (const m of (data ?? [])) {
+        counts[m.student_id] = (counts[m.student_id] ?? 0) + 1;
+      }
+      return counts;
+    },
+    enabled: !!academyId,
+    refetchInterval: 6000,
+  });
+}
+
 const key = (academyId, studentId) => ["messages", academyId, studentId];
 
 export function useMessages(academyId, studentId, { refetchInterval = false } = {}) {

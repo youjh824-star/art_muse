@@ -6,7 +6,7 @@ import { alertMutationError, catchUserAction, logBackgroundError } from "./src/l
 import { requireSupabase } from "./src/lib/supabase.js";
 import { useArtlogAppState, subscribeQueue } from "./src/hooks/useArtlogAppState.js";
 import { useFeedbackReplies, useFeedbackReplyMutation } from "./src/hooks/useFeedbackReplies.js";
-import { useMessages, useMessageMutations } from "./src/hooks/useMessages.js";
+import { useMessages, useMessageMutations, useLatestMessagesByStudent, useUnreadCountByStudent } from "./src/hooks/useMessages.js";
 import { groupLinkedParentsByAccount, sortFeedbacksRecentFirst } from "./src/lib/mappers.js";
 import {
   defaultNotifyDateTime,
@@ -1353,7 +1353,7 @@ const FeedbackMessageRow=({feedback:f,showStudent=false,onOpen,onEdit,onDelete,e
 };
 
 // ─── TABS ──────────────────────────────────────────────────
-const ADMIN_TABS =[{id:"home",icon:"⌂",label:"홈"},{id:"students",icon:"◉",label:"학생"},{id:"artworks",icon:"◈",label:"작품"},{id:"schedule",icon:"📅",label:"일정"},{id:"more",icon:"⋯",label:"더보기"}];
+const ADMIN_TABS =[{id:"home",icon:"⌂",label:"홈"},{id:"students",icon:"◉",label:"학생"},{id:"artworks",icon:"◈",label:"작품"},{id:"chat",icon:"💬",label:"채팅"},{id:"schedule",icon:"📅",label:"일정"},{id:"more",icon:"⋯",label:"더보기"}];
 const PARENT_TABS=[{id:"phome",icon:"🏠",label:"홈"},{id:"partworks",icon:"🖼",label:"작품"},{id:"pfeedback",icon:"💬",label:"피드백"},{id:"pschedule",icon:"📅",label:"일정"},{id:"pnotice",icon:"📢",label:"공지"},{id:"pchat",icon:"📨",label:"채팅"},{id:"psettings",icon:"⚙️",label:"설정"}];
 
 // ══════════════════════════════════════════════════════════════
@@ -2287,7 +2287,6 @@ const StudentDetail=({student,feedbacks,artworks,academy,attendanceRecords=[],on
     {id:"artworks",l:`작품 ${arts.length}`},
     {id:"attendance",l:"출결"},
     {id:"feedback",l:"피드백"},
-    {id:"chat",l:"📨 채팅"},
     {id:"exam",l:"🎯 입시"},
     {id:"consult",l:"🔒 상담"},
   ];
@@ -2405,9 +2404,6 @@ const StudentDetail=({student,feedbacks,artworks,academy,attendanceRecords=[],on
           <PlanGate requiredPlan="premium" plan={plan} onUpgrade={onUpgrade}>
             <ConsultationDiary student={student} academyId={academyId}/>
           </PlanGate>
-        )}
-        {tab==="chat"&&(
-          <AdminStudentChat student={student} academyId={academyId} adminId={adminId}/>
         )}
       </div>
       <BottomSheet open={!!editFb} onClose={()=>setEditFb(null)} title="피드백 수정">
@@ -4434,9 +4430,9 @@ const AdminStudentChat=({student,academyId,adminId})=>{
   );
 };
 
-// ── 학부모: 채팅 탭 ─────────────────────────────────────────
-const ParentChatPage=({student,academyId,userId})=>{
-  const{data:msgs=[],isLoading}=useMessages(academyId,student.id,{refetchInterval:5000});
+// ── 원장: DM 채팅방 (학생 1명) ──────────────────────────────
+const AdminChatRoom=({student,academyId,adminId,onBack})=>{
+  const{data:msgs=[],isLoading}=useMessages(academyId,student.id,{refetchInterval:4000});
   const{sendMessage,markRead}=useMessageMutations(academyId,student.id);
   const scrollRef=useRef(null);
 
@@ -4445,9 +4441,142 @@ const ParentChatPage=({student,academyId,userId})=>{
   },[msgs.length]);
 
   useEffect(()=>{
-    if(msgs.some(m=>m.sender_role==="admin"&&!m.is_read)){
-      markRead.mutate("parent");
-    }
+    if(msgs.some(m=>m.sender_role==="parent"&&!m.is_read)) markRead.mutate("admin");
+  },[msgs]);
+
+  const handleSend=async(content)=>{
+    sendMessage.mutate({senderId:adminId,senderRole:"admin",content},{
+      onSuccess:async()=>{
+        try{
+          const sb=requireSupabase();
+          const{data:rows}=await sb.from("parent_student_links").select("push_token").eq("academy_id",academyId).eq("student_id",student.id).not("push_token","is",null);
+          const tokens=(rows??[]).map(r=>r.push_token).filter(Boolean);
+          if(tokens.length) await sb.functions.invoke("push-notify",{body:{tokens,title:`선생님: ${student.name}`,body:content.length>50?content.slice(0,50)+"…":content,data:{type:"message"}}});
+        }catch{}
+      }
+    });
+  };
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+      {/* 헤더 */}
+      <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",borderBottom:`1px solid ${C.light}`,background:C.white,flexShrink:0}}>
+        <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:C.charcoal,padding:"0 4px",lineHeight:1}}>←</button>
+        <div style={{width:36,height:36,borderRadius:18,background:C.terraL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:C.terra,flexShrink:0}}>
+          {student.name?.[0]}
+        </div>
+        <div>
+          <div style={{fontSize:15,fontWeight:700,color:C.charcoal}}>{student.name}</div>
+          <div style={{fontSize:11,color:C.warm}}>{student.className||"학부모와 채팅"}</div>
+        </div>
+      </div>
+      {/* 메시지 목록 */}
+      <div ref={scrollRef} style={{flex:1,overflowY:"auto",padding:"12px 16px"}}>
+        {isLoading&&<div style={{textAlign:"center",color:C.warm,fontSize:12,padding:20}}>불러오는 중…</div>}
+        {!isLoading&&msgs.length===0&&(
+          <div style={{textAlign:"center",padding:40}}>
+            <div style={{fontSize:32,marginBottom:12}}>💬</div>
+            <div style={{fontSize:13,color:C.warm,lineHeight:1.7}}>{student.name} 학부모에게<br/>첫 메시지를 보내보세요</div>
+          </div>
+        )}
+        {msgs.map(m=>(
+          <ChatBubble key={m.id} content={m.content} isMe={m.sender_role==="admin"} time={m.created_at} role={m.sender_role}/>
+        ))}
+      </div>
+      <ChatInput onSend={handleSend} disabled={sendMessage.isPending}/>
+    </div>
+  );
+};
+
+// ── 원장: DM 목록 (Instagram DM 스타일) ─────────────────────
+const AdminDMPage=({students,academyId,adminId})=>{
+  const[selStudent,setSelStudent]=useState(null);
+  const{data:latestMsgs={}}=useLatestMessagesByStudent(academyId);
+  const{data:unreadCounts={}}=useUnreadCountByStudent(academyId);
+
+  const totalUnread=Object.values(unreadCounts).reduce((a,b)=>a+b,0);
+
+  const sorted=[...students].sort((a,b)=>{
+    const la=latestMsgs[a.id],lb=latestMsgs[b.id];
+    if(la&&!lb)return -1; if(!la&&lb)return 1;
+    if(la&&lb)return new Date(lb.created_at)-new Date(la.created_at);
+    return (a.name??'').localeCompare(b.name??'','ko');
+  });
+
+  const fmtTime=(iso)=>{
+    if(!iso)return'';
+    const d=new Date(iso),now=new Date();
+    const diffD=Math.floor((now-d)/86400000);
+    if(diffD===0)return d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
+    if(diffD===1)return '어제';
+    if(diffD<7)return `${diffD}일 전`;
+    return d.toLocaleDateString('ko-KR',{month:'numeric',day:'numeric'});
+  };
+
+  if(selStudent) return <AdminChatRoom student={selStudent} academyId={academyId} adminId={adminId} onBack={()=>setSelStudent(null)}/>;
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+      <div style={{padding:"16px 16px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:`1px solid ${C.light}`,flexShrink:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:18,fontWeight:800,color:C.charcoal}}>메시지</span>
+          {totalUnread>0&&<span style={{background:C.terra,color:"white",borderRadius:10,fontSize:11,fontWeight:700,padding:"2px 7px"}}>{totalUnread}</span>}
+        </div>
+      </div>
+      <div style={{flex:1,overflowY:"auto"}}>
+        {sorted.length===0&&(
+          <div style={{textAlign:"center",padding:"60px 24px",color:C.warm,fontSize:13}}>등록된 학생이 없습니다</div>
+        )}
+        {sorted.map(s=>{
+          const last=latestMsgs[s.id];
+          const unread=unreadCounts[s.id]??0;
+          const preview=last?(last.sender_role==="admin"?"나: ":"")+last.content:"메시지를 보내보세요";
+          const colors=["#E8A87C","#7A9E7E","#8B9DC3","#C17F9E","#9B8BB4","#C0A97A"];
+          const bg=colors[(s.name?.charCodeAt(0)??0)%colors.length];
+          return(
+            <div key={s.id} onClick={()=>setSelStudent(s)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",cursor:"pointer",borderBottom:`1px solid ${C.beige}`,background:"white",transition:"background .1s"}}
+              onMouseEnter={e=>e.currentTarget.style.background=C.cream}
+              onMouseLeave={e=>e.currentTarget.style.background="white"}
+            >
+              <div style={{position:"relative",flexShrink:0}}>
+                <div style={{width:52,height:52,borderRadius:26,background:bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,fontWeight:700,color:"white"}}>
+                  {s.name?.[0]}
+                </div>
+                {unread>0&&(
+                  <div style={{position:"absolute",top:-2,right:-2,width:18,height:18,borderRadius:9,background:C.terra,color:"white",fontSize:10,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",border:"2px solid white"}}>
+                    {unread>9?"9+":unread}
+                  </div>
+                )}
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                  <span style={{fontSize:14,fontWeight:unread>0?700:600,color:C.charcoal}}>{s.name}</span>
+                  <span style={{fontSize:11,color:C.warm,flexShrink:0}}>{fmtTime(last?.created_at)}</span>
+                </div>
+                <div style={{fontSize:12,color:unread>0?C.charcoal:C.warm,fontWeight:unread>0?600:400,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"90%"}}>
+                  {preview.length>35?preview.slice(0,35)+"…":preview}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ── 학부모: 채팅 탭 ─────────────────────────────────────────
+const ParentChatPage=({student,academyId,userId})=>{
+  const{data:msgs=[],isLoading}=useMessages(academyId,student?.id,{refetchInterval:4000});
+  const{sendMessage,markRead}=useMessageMutations(academyId,student?.id);
+  const scrollRef=useRef(null);
+
+  useEffect(()=>{
+    if(scrollRef.current) scrollRef.current.scrollTop=scrollRef.current.scrollHeight;
+  },[msgs.length]);
+
+  useEffect(()=>{
+    if(msgs.some(m=>m.sender_role==="admin"&&!m.is_read)) markRead.mutate("parent");
   },[msgs]);
 
   const handleSend=(content)=>{
@@ -4455,22 +4584,30 @@ const ParentChatPage=({student,academyId,userId})=>{
   };
 
   return(
-    <div style={{padding:"0 16px 16px",display:"flex",flexDirection:"column",flex:1,height:"calc(100vh - 140px)"}}>
-      <div style={{fontSize:18,fontWeight:800,color:C.charcoal,padding:"16px 0 4px"}}>선생님과 채팅</div>
-      <div style={{fontSize:12,color:C.warm,marginBottom:12}}>{student.name} · 아트뮤즈 미술학원</div>
-      <div ref={scrollRef} style={{flex:1,overflowY:"auto",paddingBottom:8}}>
-        {isLoading&&<div style={{textAlign:"center",color:C.warm,fontSize:12,padding:16}}>불러오는 중…</div>}
+    <div style={{display:"flex",flexDirection:"column",height:"100%",background:C.cream}}>
+      {/* 채팅방 헤더 */}
+      <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px 12px",borderBottom:`1px solid ${C.light}`,background:C.white,flexShrink:0}}>
+        <div style={{width:40,height:40,borderRadius:20,background:C.terraL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:C.terra}}>🎨</div>
+        <div>
+          <div style={{fontSize:15,fontWeight:700,color:C.charcoal}}>아트뮤즈 선생님</div>
+          <div style={{fontSize:11,color:C.warm}}>{student?.name} 학부모</div>
+        </div>
+      </div>
+      {/* 메시지 목록 */}
+      <div ref={scrollRef} style={{flex:1,overflowY:"auto",padding:"12px 16px"}}>
+        {isLoading&&<div style={{textAlign:"center",color:C.warm,fontSize:12,padding:20}}>불러오는 중…</div>}
         {!isLoading&&msgs.length===0&&(
-          <div style={{textAlign:"center",color:C.warm,fontSize:13,padding:32,lineHeight:1.8}}>
-            선생님에게 궁금한 점을 물어보세요 💬<br/>
-            <span style={{fontSize:11,color:C.warm}}>메시지를 보내면 선생님께 알림이 전달됩니다</span>
+          <div style={{textAlign:"center",padding:"48px 24px"}}>
+            <div style={{fontSize:40,marginBottom:12}}>💬</div>
+            <div style={{fontSize:14,fontWeight:700,color:C.charcoal,marginBottom:6}}>선생님께 메시지 보내기</div>
+            <div style={{fontSize:12,color:C.warm,lineHeight:1.7}}>수업 관련 궁금한 점이나<br/>전달 사항을 자유롭게 보내세요</div>
           </div>
         )}
         {msgs.map(m=>(
           <ChatBubble key={m.id} content={m.content} isMe={m.sender_role==="parent"} time={m.created_at} role={m.sender_role}/>
         ))}
       </div>
-      <ChatInput onSend={handleSend} disabled={sendMessage.isPending}/>
+      <ChatInput onSend={handleSend} placeholder="선생님께 메시지 보내기…" disabled={sendMessage.isPending}/>
     </div>
   );
 };
@@ -6606,6 +6743,7 @@ export default function App(){
           onDeleteSchedule={onDeleteSchedule}
         />
       );
+      case"chat":     return <AdminDMPage students={students} academyId={academyId} adminId={auth.user?.id}/>;
       case"more":     return <AdminMore students={students} onNavigate={handleAdminNav} academy={academySafe} logoSrc={logoSrc}/>;
       default:        return <AdminHome students={students} schedules={schedules} notices={notices} feedbacks={feedbacks} onAttendTap={setAttendSt} onNavigate={handleAdminNav} attendanceMap={attendMapDisplay} logoSrc={logoSrc} classTimes={classTimesForAttendance} isNativeApp={isNativeApp} onExitApp={handleExitApp}/>;
     }
