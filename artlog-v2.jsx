@@ -4335,14 +4335,14 @@ const FeedbackThread=({feedback,academyId,userId,userRole})=>{
   };
 
   return(
-    <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+    <div style={{display:"flex",flexDirection:"column"}}>
       {/* 원본 피드백 */}
       <div style={{background:C.cream,borderRadius:12,padding:"12px 16px",marginBottom:16,borderLeft:`3px solid ${C.terra}`}}>
         <div style={{fontSize:11,color:C.warm,marginBottom:6}}>선생님 · {feedback.date}</div>
         <div style={{fontSize:13,color:C.charcoal,lineHeight:1.7,whiteSpace:"pre-wrap"}}>{feedback.content}</div>
       </div>
       {/* 답변 스레드 */}
-      <div ref={scrollRef} style={{flex:1,overflowY:"auto",paddingBottom:8}}>
+      <div ref={scrollRef} style={{height:"calc(92vh - 340px)",overflowY:"auto",paddingBottom:8}}>
         {isLoading&&<div style={{textAlign:"center",color:C.warm,fontSize:12,padding:16}}>불러오는 중…</div>}
         {!isLoading&&replies.length===0&&(
           <div style={{textAlign:"center",color:C.warm,fontSize:12,padding:16}}>첫 번째 답변을 남겨보세요</div>
@@ -4457,10 +4457,11 @@ const AdminChatRoom=({student,academyId,adminId,onBack})=>{
     });
   };
 
+  const CHAT_MSG_H="calc(92vh - 242px)";
   return(
-    <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+    <div style={{display:"flex",flexDirection:"column"}}>
       {/* 헤더 */}
-      <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",borderBottom:`1px solid ${C.light}`,background:C.white,flexShrink:0}}>
+      <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",borderBottom:`1px solid ${C.light}`,background:C.white}}>
         <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:C.charcoal,padding:"0 4px",lineHeight:1}}>←</button>
         <div style={{width:36,height:36,borderRadius:18,background:C.terraL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:C.terra,flexShrink:0}}>
           {student.name?.[0]}
@@ -4471,7 +4472,7 @@ const AdminChatRoom=({student,academyId,adminId,onBack})=>{
         </div>
       </div>
       {/* 메시지 목록 */}
-      <div ref={scrollRef} style={{flex:1,overflowY:"auto",padding:"12px 16px"}}>
+      <div ref={scrollRef} style={{height:CHAT_MSG_H,overflowY:"auto",padding:"12px 16px",background:C.cream}}>
         {isLoading&&<div style={{textAlign:"center",color:C.warm,fontSize:12,padding:20}}>불러오는 중…</div>}
         {!isLoading&&msgs.length===0&&(
           <div style={{textAlign:"center",padding:40}}>
@@ -4583,10 +4584,11 @@ const ParentChatPage=({student,academyId,userId})=>{
     sendMessage.mutate({senderId:userId,senderRole:"parent",content});
   };
 
+  const CHAT_MSG_H="calc(92vh - 280px)";
   return(
-    <div style={{display:"flex",flexDirection:"column",height:"100%",background:C.cream}}>
+    <div style={{display:"flex",flexDirection:"column",background:C.cream}}>
       {/* 채팅방 헤더 */}
-      <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px 12px",borderBottom:`1px solid ${C.light}`,background:C.white,flexShrink:0}}>
+      <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px 12px",borderBottom:`1px solid ${C.light}`,background:C.white}}>
         <div style={{width:40,height:40,borderRadius:20,background:C.terraL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:C.terra}}>🎨</div>
         <div>
           <div style={{fontSize:15,fontWeight:700,color:C.charcoal}}>아트뮤즈 선생님</div>
@@ -4594,7 +4596,7 @@ const ParentChatPage=({student,academyId,userId})=>{
         </div>
       </div>
       {/* 메시지 목록 */}
-      <div ref={scrollRef} style={{flex:1,overflowY:"auto",padding:"12px 16px"}}>
+      <div ref={scrollRef} style={{height:CHAT_MSG_H,overflowY:"auto",padding:"12px 16px"}}>
         {isLoading&&<div style={{textAlign:"center",color:C.warm,fontSize:12,padding:20}}>불러오는 중…</div>}
         {!isLoading&&msgs.length===0&&(
           <div style={{textAlign:"center",padding:"48px 24px"}}>
