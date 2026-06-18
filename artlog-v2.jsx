@@ -4580,8 +4580,22 @@ const ParentChatPage=({student,academyId,userId})=>{
     if(msgs.some(m=>m.sender_role==="admin"&&!m.is_read)) markRead.mutate("parent");
   },[msgs]);
 
-  const handleSend=(content)=>{
-    sendMessage.mutate({senderId:userId,senderRole:"parent",content});
+  const handleSend=async(content)=>{
+    sendMessage.mutate({senderId:userId,senderRole:"parent",content},{
+      onSuccess:async()=>{
+        try{
+          const sb=requireSupabase();
+          // 원장 push token 조회 (academies.owner_id → profiles.push_token)
+          const{data:academy}=await sb.from("academies").select("owner_id").eq("id",academyId).single();
+          if(academy?.owner_id){
+            const{data:prof}=await sb.from("profiles").select("push_token").eq("id",academy.owner_id).single();
+            if(prof?.push_token){
+              await sb.functions.invoke("push-notify",{body:{tokens:[prof.push_token],title:`학부모 메시지`,body:content.length>50?content.slice(0,50)+"…":content,data:{type:"message"}}});
+            }
+          }
+        }catch{}
+      }
+    });
   };
 
   const CHAT_MSG_H="calc(92vh - 440px)";
