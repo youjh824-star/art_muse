@@ -3,6 +3,27 @@ import { requireSupabase } from "../lib/supabase.js";
 import { mapNotice } from "../lib/mappers.js";
 import { queryKeys } from "./queryKeys.js";
 
+async function sendNoticePush({ academyId, title, important }) {
+  try {
+    const sb = requireSupabase();
+    const { data: rows } = await sb
+      .from("parent_student_links")
+      .select("push_token")
+      .eq("academy_id", academyId)
+      .not("push_token", "is", null);
+    const tokens = [...new Set((rows ?? []).map(r => r.push_token).filter(Boolean))];
+    if (!tokens.length) return;
+    await sb.functions.invoke("push-notify", {
+      body: {
+        tokens,
+        title: important ? `📢 중요 공지: ${title}` : "📢 새 공지사항",
+        body: important ? "중요 공지가 등록되었습니다. 확인해 주세요." : title,
+        data: { type: "notice" },
+      },
+    });
+  } catch { /* silent */ }
+}
+
 export function useNotices(academyId, { refetchInterval = false } = {}) {
   return useQuery({
     queryKey: queryKeys.notices(academyId),
@@ -44,7 +65,10 @@ export function useNoticeMutations(academyId) {
       if (error) throw error;
       return mapNotice(data);
     },
-    onSuccess: invalidate,
+    onSuccess: (notice) => {
+      invalidate();
+      sendNoticePush({ academyId, title: notice.title, important: notice.important });
+    },
   });
 
   const updateNotice = useMutation({

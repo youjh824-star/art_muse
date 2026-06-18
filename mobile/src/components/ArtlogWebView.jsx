@@ -70,9 +70,16 @@ export default function ArtlogWebView() {
   const webAppUrl = resolveWebAppUrl();
 
   useEffect(() => {
-    registerForPushNotifications().catch((e) =>
-      console.warn("Push registration:", e.message)
-    );
+    registerForPushNotifications()
+      .then((token) => {
+        if (token && webRef.current) {
+          // 웹앱에 push token 전달 → Supabase 저장
+          webRef.current.injectJavaScript(
+            `window.__nativePushToken = ${JSON.stringify(token)}; true;`
+          );
+        }
+      })
+      .catch((e) => console.warn("Push registration:", e.message));
     requestMediaPermissions().catch(() => {});
   }, []);
 

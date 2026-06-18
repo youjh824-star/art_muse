@@ -3,6 +3,23 @@ import { requireSupabase } from "../lib/supabase.js";
 import { mapFeedback } from "../lib/mappers.js";
 import { queryKeys } from "./queryKeys.js";
 
+async function sendFeedbackPush({ academyId, studentId, studentName }) {
+  try {
+    const sb = requireSupabase();
+    const { data: rows } = await sb
+      .from("parent_student_links")
+      .select("push_token")
+      .eq("academy_id", academyId)
+      .eq("student_id", studentId)
+      .not("push_token", "is", null);
+    const tokens = (rows ?? []).map(r => r.push_token).filter(Boolean);
+    if (!tokens.length) return;
+    await sb.functions.invoke("push-notify", {
+      body: { tokens, title: "새 피드백이 도착했습니다", body: `${studentName} 학생의 선생님 피드백을 확인해 보세요.`, data: { type: "feedback" } },
+    });
+  } catch { /* silent */ }
+}
+
 export function useFeedbacks(academyId, { refetchInterval = false } = {}) {
   return useQuery({
     queryKey: queryKeys.feedbacks(academyId),
@@ -48,7 +65,12 @@ export function useFeedbackMutations(academyId) {
       if (error) throw error;
       return mapFeedback(data);
     },
-    onSuccess: invalidate,
+    onSuccess: (fb) => {
+      invalidate();
+      if (!fb.notifyScheduledAt) {
+        sendFeedbackPush({ academyId, studentId: fb.studentId, studentName: fb.studentName });
+      }
+    },
   });
 
   const updateFeedback = useMutation({

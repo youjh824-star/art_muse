@@ -559,6 +559,28 @@ function resolveLogoUrl(logoUrl) {
   return logoUrl || LOGO;
 }
 
+// ─── Push Notification ────────────────────────────────────────
+async function savePushToken(userId, token) {
+  if (!token || !userId) return;
+  try {
+    const sb = requireSupabase();
+    await sb.from("profiles").update({ push_token: token }).eq("id", userId);
+    await sb.from("parent_student_links").update({ push_token: token }).eq("parent_id", userId);
+  } catch { /* silent */ }
+}
+
+async function sendPushToParents({ academyId, studentIds, title, body, data }) {
+  try {
+    const sb = requireSupabase();
+    let query = sb.from("parent_student_links").select("push_token").eq("academy_id", academyId).not("push_token", "is", null);
+    if (studentIds?.length) query = query.in("student_id", studentIds);
+    const { data: rows } = await query;
+    const tokens = [...new Set((rows ?? []).map(r => r.push_token).filter(Boolean))];
+    if (!tokens.length) return;
+    await sb.functions.invoke("push-notify", { body: { tokens, title, body, data } });
+  } catch { /* silent */ }
+}
+
 function isInviteExpired(invite) {
   return new Date(`${invite.expiresAt}T23:59:59`) < new Date();
 }
@@ -5726,6 +5748,14 @@ export default function App(){
 
   const userEmail = auth.user?.email;
   const { plan, planInfo, isMaster, canDo } = usePlan(userEmail, academy);
+
+  // 앱 시작 시 native push token → Supabase 저장
+  useEffect(() => {
+    const userId = auth.user?.id;
+    if (!userId) return;
+    const token = window.__nativePushToken;
+    if (token) savePushToken(userId, token);
+  }, [auth.user?.id]);
 
   const academySafe = academy ?? { ...ACADEMY_DEFAULTS, notifs: { ...ACADEMY_DEFAULTS.notifs } };
   const academyOptionsSafe = academyOptions ?? loadAcademyOptions();

@@ -2,6 +2,26 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { requireSupabase } from "../lib/supabase.js";
 import { queryKeys } from "./queryKeys.js";
 
+const STATUS_LABELS = { present: "출석", late: "지각", absent: "결석", makeup: "보강" };
+
+async function sendAttendancePush({ academyId, studentId, studentName, status }) {
+  try {
+    const sb = requireSupabase();
+    const { data: rows } = await sb
+      .from("parent_student_links")
+      .select("push_token")
+      .eq("academy_id", academyId)
+      .eq("student_id", studentId)
+      .not("push_token", "is", null);
+    const tokens = (rows ?? []).map(r => r.push_token).filter(Boolean);
+    if (!tokens.length) return;
+    const label = STATUS_LABELS[status] ?? status;
+    await sb.functions.invoke("push-notify", {
+      body: { tokens, title: `${studentName} ${label}`, body: "아트뮤즈에서 출결 처리되었습니다.", data: { type: "attendance" } },
+    });
+  } catch { /* silent */ }
+}
+
 export function useAttendance(academyId, { refetchInterval = false } = {}) {
   return useQuery({
     queryKey: queryKeys.attendance(academyId),
@@ -59,7 +79,10 @@ export function useAttendanceMutations(academyId) {
       if (error) throw error;
       return data;
     },
-    onSuccess: invalidate,
+    onSuccess: (data) => {
+      invalidate();
+      sendAttendancePush({ academyId, studentId: data.student_id, studentName: data.student_name, status: data.status });
+    },
   });
 
   const syncBatch = useMutation({
