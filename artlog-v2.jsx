@@ -5,6 +5,8 @@ import { authErrorMessage, dbErrorMessage } from "./src/lib/authErrors.js";
 import { alertMutationError, catchUserAction, logBackgroundError } from "./src/lib/reportError.js";
 import { requireSupabase } from "./src/lib/supabase.js";
 import { useArtlogAppState, subscribeQueue } from "./src/hooks/useArtlogAppState.js";
+import { useFeedbackReplies, useFeedbackReplyMutation } from "./src/hooks/useFeedbackReplies.js";
+import { useMessages, useMessageMutations } from "./src/hooks/useMessages.js";
 import { groupLinkedParentsByAccount, sortFeedbacksRecentFirst } from "./src/lib/mappers.js";
 import {
   defaultNotifyDateTime,
@@ -565,7 +567,7 @@ async function savePushToken(userId, token) {
   try {
     const sb = requireSupabase();
     await sb.from("profiles").update({ push_token: token }).eq("id", userId);
-    await sb.from("parent_student_links").update({ push_token: token }).eq("parent_id", userId);
+    await sb.from("parent_student_links").update({ push_token: token }).eq("parent_user_id", userId);
   } catch { /* silent */ }
 }
 
@@ -1111,14 +1113,17 @@ const AppAlertModal=({message,onClose})=>{
   );
 };
 
-const BottomSheet=({open,onClose,children,title})=>{
+const BottomSheet=({open,onClose,children,title,fullHeight})=>{
   if(!open)return null;
+  const h=fullHeight?"88vh":"auto";
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:200}} onClick={onClose}>
-      <div onClick={e=>e.stopPropagation()} style={{background:C.white,borderRadius:"20px 20px 0 0",padding:"24px 20px 40px",width:"100%",maxWidth:430,animation:"slideUp .25s ease",maxHeight:"88vh",overflowY:"auto"}}>
-        <div style={{width:40,height:4,background:C.light,borderRadius:2,margin:"0 auto 16px"}}/>
-        {title&&<div style={{fontSize:16,fontWeight:700,color:C.charcoal,marginBottom:16}}>{title}</div>}
-        {children}
+      <div onClick={e=>e.stopPropagation()} style={{background:C.white,borderRadius:"20px 20px 0 0",padding:"24px 20px 0",width:"100%",maxWidth:430,animation:"slideUp .25s ease",maxHeight:"88vh",height:h,overflowY:fullHeight?"hidden":"auto",display:"flex",flexDirection:"column"}}>
+        <div style={{width:40,height:4,background:C.light,borderRadius:2,margin:"0 auto 16px",flexShrink:0}}/>
+        {title&&<div style={{fontSize:16,fontWeight:700,color:C.charcoal,marginBottom:16,flexShrink:0}}>{title}</div>}
+        <div style={{flex:fullHeight?1:"none",overflowY:fullHeight?"hidden":"visible",display:"flex",flexDirection:"column",paddingBottom:fullHeight?0:40}}>
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -1349,7 +1354,7 @@ const FeedbackMessageRow=({feedback:f,showStudent=false,onOpen,onEdit,onDelete,e
 
 // ─── TABS ──────────────────────────────────────────────────
 const ADMIN_TABS =[{id:"home",icon:"⌂",label:"홈"},{id:"students",icon:"◉",label:"학생"},{id:"artworks",icon:"◈",label:"작품"},{id:"schedule",icon:"📅",label:"일정"},{id:"more",icon:"⋯",label:"더보기"}];
-const PARENT_TABS=[{id:"phome",icon:"🏠",label:"홈"},{id:"partworks",icon:"🖼",label:"작품"},{id:"pfeedback",icon:"💬",label:"피드백"},{id:"pschedule",icon:"📅",label:"일정"},{id:"pnotice",icon:"📢",label:"공지"},{id:"psettings",icon:"⚙️",label:"설정"}];
+const PARENT_TABS=[{id:"phome",icon:"🏠",label:"홈"},{id:"partworks",icon:"🖼",label:"작품"},{id:"pfeedback",icon:"💬",label:"피드백"},{id:"pschedule",icon:"📅",label:"일정"},{id:"pnotice",icon:"📢",label:"공지"},{id:"pchat",icon:"📨",label:"채팅"},{id:"psettings",icon:"⚙️",label:"설정"}];
 
 // ══════════════════════════════════════════════════════════════
 // 1. ADMIN HOME
@@ -2256,7 +2261,7 @@ const ConsultationDiary = ({ student, academyId }) => {
   );
 };
 
-const StudentDetail=({student,feedbacks,artworks,academy,attendanceRecords=[],onBack,onFeedback,onManualFeedback,onEdit,onUpdateFeedback,onDeleteFeedback,plan,onUpgrade,academyId})=>{
+const StudentDetail=({student,feedbacks,artworks,academy,attendanceRecords=[],onBack,onFeedback,onManualFeedback,onEdit,onUpdateFeedback,onDeleteFeedback,plan,onUpgrade,academyId,adminId})=>{
   const[tab,setTab]=useState("info");
   const[editFb,setEditFb]=useState(null);
   const[editContent,setEditContent]=useState("");
@@ -2282,6 +2287,7 @@ const StudentDetail=({student,feedbacks,artworks,academy,attendanceRecords=[],on
     {id:"artworks",l:`작품 ${arts.length}`},
     {id:"attendance",l:"출결"},
     {id:"feedback",l:"피드백"},
+    {id:"chat",l:"📨 채팅"},
     {id:"exam",l:"🎯 입시"},
     {id:"consult",l:"🔒 상담"},
   ];
@@ -2399,6 +2405,9 @@ const StudentDetail=({student,feedbacks,artworks,academy,attendanceRecords=[],on
           <PlanGate requiredPlan="premium" plan={plan} onUpgrade={onUpgrade}>
             <ConsultationDiary student={student} academyId={academyId}/>
           </PlanGate>
+        )}
+        {tab==="chat"&&(
+          <AdminStudentChat student={student} academyId={academyId} adminId={adminId}/>
         )}
       </div>
       <BottomSheet open={!!editFb} onClose={()=>setEditFb(null)} title="피드백 수정">
@@ -4278,7 +4287,81 @@ const ParentArtworks=({student,artworks,academy,feedbacks=[],onUpload})=>{
   );
 };
 
-const ParentFeedback=({student,feedbacks,onMarkRead})=>{
+// ── 채팅 버블 공통 컴포넌트 ──────────────────────────────────
+const ChatBubble=({content,isMe,time,role})=>{
+  const ts=time?new Date(time).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"}):"";
+  return(
+    <div style={{display:"flex",flexDirection:"column",alignItems:isMe?"flex-end":"flex-start",marginBottom:10}}>
+      {!isMe&&<div style={{fontSize:10,color:C.warm,marginBottom:3,marginLeft:4}}>{role==="admin"?"선생님":"학부모"}</div>}
+      <div style={{maxWidth:"78%",background:isMe?C.terra:C.white,color:isMe?"white":C.charcoal,borderRadius:isMe?"16px 4px 16px 16px":"4px 16px 16px 16px",padding:"10px 14px",fontSize:13,lineHeight:1.65,whiteSpace:"pre-wrap",boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>
+        {content}
+      </div>
+      <div style={{fontSize:10,color:C.warm,marginTop:3,marginHorizontal:4}}>{ts}</div>
+    </div>
+  );
+};
+
+// ── 채팅 입력창 공통 컴포넌트 ────────────────────────────────
+const ChatInput=({onSend,placeholder="메시지를 입력하세요…",disabled})=>{
+  const[text,setText]=useState("");
+  const send=()=>{
+    if(!text.trim()||disabled) return;
+    onSend(text.trim());
+    setText("");
+  };
+  return(
+    <div style={{display:"flex",gap:8,padding:"10px 16px",borderTop:`1px solid ${C.light}`,background:C.cream,alignItems:"flex-end"}}>
+      <textarea
+        value={text}
+        onChange={e=>setText(e.target.value)}
+        onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}
+        placeholder={placeholder}
+        rows={1}
+        style={{flex:1,padding:"10px 14px",border:`1px solid ${C.light}`,borderRadius:18,fontSize:13,outline:"none",background:C.white,color:C.charcoal,resize:"none",fontFamily:"inherit",lineHeight:1.5,maxHeight:80,overflowY:"auto"}}
+      />
+      <button onClick={send} disabled={!text.trim()||disabled} style={{width:40,height:40,borderRadius:20,background:text.trim()?C.terra:C.light,color:"white",border:"none",fontSize:18,cursor:text.trim()?"pointer":"default",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>↑</button>
+    </div>
+  );
+};
+
+// ── 피드백 답변 쓰레드 (시트 내부) ──────────────────────────
+const FeedbackThread=({feedback,academyId,userId,userRole})=>{
+  const{data:replies=[],isLoading}=useFeedbackReplies(feedback?.id);
+  const addReply=useFeedbackReplyMutation(academyId);
+  const scrollRef=useRef(null);
+
+  useEffect(()=>{
+    if(scrollRef.current) scrollRef.current.scrollTop=scrollRef.current.scrollHeight;
+  },[replies.length]);
+
+  const handleSend=(content)=>{
+    addReply.mutate({feedbackId:feedback.id,senderId:userId,senderRole:userRole,content});
+  };
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
+      {/* 원본 피드백 */}
+      <div style={{background:C.cream,borderRadius:12,padding:"12px 16px",marginBottom:16,borderLeft:`3px solid ${C.terra}`}}>
+        <div style={{fontSize:11,color:C.warm,marginBottom:6}}>선생님 · {feedback.date}</div>
+        <div style={{fontSize:13,color:C.charcoal,lineHeight:1.7,whiteSpace:"pre-wrap"}}>{feedback.content}</div>
+      </div>
+      {/* 답변 스레드 */}
+      <div ref={scrollRef} style={{flex:1,overflowY:"auto",paddingBottom:8}}>
+        {isLoading&&<div style={{textAlign:"center",color:C.warm,fontSize:12,padding:16}}>불러오는 중…</div>}
+        {!isLoading&&replies.length===0&&(
+          <div style={{textAlign:"center",color:C.warm,fontSize:12,padding:16}}>첫 번째 답변을 남겨보세요</div>
+        )}
+        {replies.map(r=>(
+          <ChatBubble key={r.id} content={r.content} isMe={r.sender_role===userRole} time={r.created_at} role={r.sender_role}/>
+        ))}
+      </div>
+      <ChatInput onSend={handleSend} placeholder="답변을 입력하세요…" disabled={addReply.isPending}/>
+    </div>
+  );
+};
+
+// ── 학부모: 피드백 목록 + 답변 ────────────────────────────────
+const ParentFeedback=({student,feedbacks,onMarkRead,userId,academyId})=>{
   const fbs=sortFeedbacksRecentFirst(feedbacksForStudent(feedbacks, student));
   const[openFb,setOpenFb]=useState(null);
 
@@ -4288,9 +4371,9 @@ const ParentFeedback=({student,feedbacks,onMarkRead})=>{
   };
 
   return(
-    <div style={{padding:"0 16px 16px"}}>
+    <div style={{padding:"0 16px 16px",display:"flex",flexDirection:"column",flex:1}}>
       <div style={{fontSize:18,fontWeight:800,color:C.charcoal,padding:"16px 0 8px"}}>선생님 피드백</div>
-      <div style={{fontSize:12,color:C.warm,marginBottom:16}}>아트뮤즈 미술학원 · 총 {fbs.length}개 · 메시지를 눌러 내용 확인</div>
+      <div style={{fontSize:12,color:C.warm,marginBottom:16}}>총 {fbs.length}개 · 피드백을 눌러 답변할 수 있어요</div>
       {fbs.length===0?<Card style={{textAlign:"center",padding:"40px 0",color:C.warm}}>아직 피드백이 없습니다</Card>:(
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {fbs.map(f=>(
@@ -4298,14 +4381,96 @@ const ParentFeedback=({student,feedbacks,onMarkRead})=>{
           ))}
         </div>
       )}
-      <BottomSheet open={!!openFb} onClose={()=>setOpenFb(null)} title={openFb?`${openFb.artEmoji} ${openFb.artwork||"수업 피드백"}`:"피드백"}>
-        {openFb&&(
-          <>
-            <div style={{fontSize:12,color:C.warm,marginBottom:12}}>{openFb.date}{openFb.read?" · 읽음":" · 새 메시지"}</div>
-            <div style={{fontSize:14,color:C.charcoal,lineHeight:1.85,background:C.cream,borderRadius:12,padding:"14px 16px",whiteSpace:"pre-wrap"}}>{openFb.content}</div>
-          </>
-        )}
+      <BottomSheet open={!!openFb} onClose={()=>setOpenFb(null)} title={openFb?`${openFb.artEmoji} ${openFb.artwork||"수업 피드백"}`:"피드백"} fullHeight>
+        {openFb&&<FeedbackThread feedback={openFb} academyId={academyId} userId={userId} userRole="parent"/>}
       </BottomSheet>
+    </div>
+  );
+};
+
+// ── 원장: 학생 채팅 탭 ───────────────────────────────────────
+const AdminStudentChat=({student,academyId,adminId})=>{
+  const{data:msgs=[],isLoading}=useMessages(academyId,student.id,{refetchInterval:8000});
+  const{sendMessage,markRead}=useMessageMutations(academyId,student.id);
+  const scrollRef=useRef(null);
+
+  useEffect(()=>{
+    if(scrollRef.current) scrollRef.current.scrollTop=scrollRef.current.scrollHeight;
+  },[msgs.length]);
+
+  useEffect(()=>{
+    if(msgs.some(m=>m.sender_role==="parent"&&!m.is_read)){
+      markRead.mutate("admin");
+    }
+  },[msgs]);
+
+  const handleSend=async(content)=>{
+    sendMessage.mutate({senderId:adminId,senderRole:"admin",content},{
+      onSuccess:async()=>{
+        try{
+          const sb=requireSupabase();
+          const{data:rows}=await sb.from("parent_student_links").select("push_token").eq("academy_id",academyId).eq("student_id",student.id).not("push_token","is",null);
+          const tokens=(rows??[]).map(r=>r.push_token).filter(Boolean);
+          if(tokens.length) await sb.functions.invoke("push-notify",{body:{tokens,title:"선생님 메시지",body:content.length>40?content.slice(0,40)+"…":content,data:{type:"message"}}});
+        }catch{}
+      }
+    });
+  };
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",height:420}}>
+      <div style={{fontSize:12,color:C.warm,padding:"8px 0 12px"}}>📨 {student.name} 학부모와의 채팅</div>
+      <div ref={scrollRef} style={{flex:1,overflowY:"auto",paddingBottom:8}}>
+        {isLoading&&<div style={{textAlign:"center",color:C.warm,fontSize:12,padding:16}}>불러오는 중…</div>}
+        {!isLoading&&msgs.length===0&&(
+          <div style={{textAlign:"center",color:C.warm,fontSize:12,padding:24}}>아직 메시지가 없습니다<br/>학부모에게 먼저 메시지를 보내보세요</div>
+        )}
+        {msgs.map(m=>(
+          <ChatBubble key={m.id} content={m.content} isMe={m.sender_role==="admin"} time={m.created_at} role={m.sender_role}/>
+        ))}
+      </div>
+      <ChatInput onSend={handleSend} disabled={sendMessage.isPending}/>
+    </div>
+  );
+};
+
+// ── 학부모: 채팅 탭 ─────────────────────────────────────────
+const ParentChatPage=({student,academyId,userId})=>{
+  const{data:msgs=[],isLoading}=useMessages(academyId,student.id,{refetchInterval:5000});
+  const{sendMessage,markRead}=useMessageMutations(academyId,student.id);
+  const scrollRef=useRef(null);
+
+  useEffect(()=>{
+    if(scrollRef.current) scrollRef.current.scrollTop=scrollRef.current.scrollHeight;
+  },[msgs.length]);
+
+  useEffect(()=>{
+    if(msgs.some(m=>m.sender_role==="admin"&&!m.is_read)){
+      markRead.mutate("parent");
+    }
+  },[msgs]);
+
+  const handleSend=(content)=>{
+    sendMessage.mutate({senderId:userId,senderRole:"parent",content});
+  };
+
+  return(
+    <div style={{padding:"0 16px 16px",display:"flex",flexDirection:"column",flex:1,height:"calc(100vh - 140px)"}}>
+      <div style={{fontSize:18,fontWeight:800,color:C.charcoal,padding:"16px 0 4px"}}>선생님과 채팅</div>
+      <div style={{fontSize:12,color:C.warm,marginBottom:12}}>{student.name} · 아트뮤즈 미술학원</div>
+      <div ref={scrollRef} style={{flex:1,overflowY:"auto",paddingBottom:8}}>
+        {isLoading&&<div style={{textAlign:"center",color:C.warm,fontSize:12,padding:16}}>불러오는 중…</div>}
+        {!isLoading&&msgs.length===0&&(
+          <div style={{textAlign:"center",color:C.warm,fontSize:13,padding:32,lineHeight:1.8}}>
+            선생님에게 궁금한 점을 물어보세요 💬<br/>
+            <span style={{fontSize:11,color:C.warm}}>메시지를 보내면 선생님께 알림이 전달됩니다</span>
+          </div>
+        )}
+        {msgs.map(m=>(
+          <ChatBubble key={m.id} content={m.content} isMe={m.sender_role==="parent"} time={m.created_at} role={m.sender_role}/>
+        ))}
+      </div>
+      <ChatInput onSend={handleSend} disabled={sendMessage.isPending}/>
     </div>
   );
 };
@@ -6370,6 +6535,7 @@ export default function App(){
         isMaster={isMaster}
         onUpgrade={()=>handleAdminNav("upgrade")}
         academyId={academyId}
+        adminId={auth.user?.id}
       />
     );
     if(subPage==="schedule") return (
@@ -6508,9 +6674,10 @@ export default function App(){
     switch(parentTab){
       case"phome":     return <>{parentHeader}<ParentHome key={parentChild.id} student={parentChild} feedbacks={feedbacks} artworks={artworks} notices={parentNotices} attendanceRecords={attendanceRecords} schedules={schedules} onTab={setParentTab}/></>;
       case"partworks": return <>{parentHeader}<ParentArtworks key={parentChild.id} student={parentChild} artworks={artworks} academy={academySafe} feedbacks={feedbacks} onUpload={()=>setParentUploadOpen(true)}/></>;
-      case"pfeedback": return <>{parentHeader}<ParentFeedback key={parentChild.id} student={parentChild} feedbacks={feedbacks} onMarkRead={markFeedbacksRead}/></>;
+      case"pfeedback": return <>{parentHeader}<ParentFeedback key={parentChild.id} student={parentChild} feedbacks={feedbacks} onMarkRead={markFeedbacksRead} userId={auth.user?.id} academyId={academyId}/></>;
       case"pschedule": return <>{parentHeader}<ParentScheduleCalendar key={parentChild.id} student={parentChild} schedules={schedules}/></>;
       case"pnotice":   return <>{parentHeader}<NoticeManager isParent notices={parentNotices} onBack={()=>setParentTab("phome")} onAddNotice={()=>{}} onUpdateNotice={()=>{}} onDeleteNotice={()=>{}}/></>;
+      case"pchat":     return <>{parentHeader}<ParentChatPage key={parentChild.id} student={parentChild} academyId={academyId} userId={auth.user?.id}/></>;
       default:         return <>{parentHeader}<ParentHome key={parentChild.id} student={parentChild} feedbacks={feedbacks} artworks={artworks} notices={parentNotices} attendanceRecords={attendanceRecords} schedules={schedules} onTab={setParentTab}/></>;
     }
   };
