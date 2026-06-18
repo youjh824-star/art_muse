@@ -4584,7 +4584,7 @@ const ParentChatPage=({student,academyId,userId})=>{
     sendMessage.mutate({senderId:userId,senderRole:"parent",content});
   };
 
-  const CHAT_MSG_H="calc(92vh - 280px)";
+  const CHAT_MSG_H="calc(92vh - 350px)";
   return(
     <div style={{display:"flex",flexDirection:"column",background:C.cream}}>
       {/* 채팅방 헤더 */}
