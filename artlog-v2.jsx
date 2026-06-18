@@ -5374,7 +5374,7 @@ const ParentAccountManager = ({ students, linkedParents, disconnectedParents, in
 
   const unlinkedStudents = students.filter(s =>
     !linkedStudentIds.has(String(s.id)) &&
-    !invites.filter(i=>!i.used).some(i => String(i.studentId) === String(s.id))
+    !invites.filter(i=>!i.used && new Date(i.expiresAt) > new Date()).some(i => String(i.studentId) === String(s.id))
   );
 
   const generateInvite = async () => {
