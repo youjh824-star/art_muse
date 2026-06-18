@@ -4457,9 +4457,9 @@ const AdminChatRoom=({student,academyId,adminId,onBack})=>{
     });
   };
 
-  const CHAT_MSG_H="calc(92vh - 242px)";
+  const CHAT_MSG_H="calc(92vh - 320px)";
   return(
-    <div style={{display:"flex",flexDirection:"column"}}>
+    <div style={{display:"flex",flexDirection:"column",paddingBottom:72}}>
       {/* 헤더 */}
       <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",borderBottom:`1px solid ${C.light}`,background:C.white}}>
         <button onClick={onBack} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:C.charcoal,padding:"0 4px",lineHeight:1}}>←</button>
@@ -4584,9 +4584,9 @@ const ParentChatPage=({student,academyId,userId})=>{
     sendMessage.mutate({senderId:userId,senderRole:"parent",content});
   };
 
-  const CHAT_MSG_H="calc(92vh - 350px)";
+  const CHAT_MSG_H="calc(92vh - 440px)";
   return(
-    <div style={{display:"flex",flexDirection:"column",background:C.cream}}>
+    <div style={{display:"flex",flexDirection:"column",background:C.cream,paddingBottom:72}}>
       {/* 채팅방 헤더 */}
       <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px 12px",borderBottom:`1px solid ${C.light}`,background:C.white}}>
         <div style={{width:40,height:40,borderRadius:20,background:C.terraL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:C.terra}}>🎨</div>
