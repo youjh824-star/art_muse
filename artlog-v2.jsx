@@ -6629,8 +6629,8 @@ export default function App(){
     studentCount: students.length,
     plan,
     isMaster,
-    academyOptions,
-    onUpdateAcademyOptions,
+    academyOptions: academyOptionsSafe,
+    onUpdateAcademyOptions: handleUpdateAcademyOptions,
   };
 
   const markFeedbacksRead = useCallback((ids) => {
