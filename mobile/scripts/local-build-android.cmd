@@ -104,13 +104,17 @@ echo   adb install -r "%APK_DEST%"
 echo.
 
 echo [5/4] Uploading APK to GitHub Releases...
-where gh >nul 2>&1
-if errorlevel 1 (
+rem GitHub CLI 경로 탐색 (winget 설치 경로 포함)
+set "GH_EXE="
+where gh >nul 2>&1 && set "GH_EXE=gh"
+if not defined GH_EXE if exist "C:\Program Files\GitHub CLI\gh.exe" set "GH_EXE=C:\Program Files\GitHub CLI\gh.exe"
+if not defined GH_EXE if exist "%LOCALAPPDATA%\Programs\GitHub CLI\gh.exe" set "GH_EXE=%LOCALAPPDATA%\Programs\GitHub CLI\gh.exe"
+if not defined GH_EXE (
   echo WARNING: gh CLI not found, skipping GitHub upload.
   echo          Install from https://cli.github.com and run: gh auth login
   goto :end
 )
-gh auth status >nul 2>&1
+"%GH_EXE%" auth status >nul 2>&1
 if errorlevel 1 (
   echo WARNING: gh not logged in. Run: gh auth login
   goto :end
@@ -122,11 +126,11 @@ set "RELEASE_TAG=latest-release"
 set "REPO=youjh824-star/art_muse"
 
 rem 기존 latest-release 태그 삭제 후 재생성 (항상 최신 유지)
-gh release delete %RELEASE_TAG% --repo %REPO% --yes >nul 2>&1
+"%GH_EXE%" release delete %RELEASE_TAG% --repo %REPO% --yes >nul 2>&1
 git tag -d %RELEASE_TAG% >nul 2>&1
 git push origin :refs/tags/%RELEASE_TAG% >nul 2>&1
 
-gh release create %RELEASE_TAG% "%APK_DEST%#%RELEASE_APK_NAME%" ^
+"%GH_EXE%" release create %RELEASE_TAG% "%APK_DEST%#%RELEASE_APK_NAME%" ^
   --repo %REPO% ^
   --title "최신 버전" ^
   --notes "자동 업로드 - %VARIANT% APK" ^
