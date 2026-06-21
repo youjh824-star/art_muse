@@ -534,5 +534,19 @@
   </p>
 </footer>
 
+<script>
+  // GitHub Releases API에서 최신 버전/날짜 자동으로 가져오기
+  fetch('https://api.github.com/repos/youjh824-star/art_muse/releases/latest')
+    .then(r => r.json())
+    .then(data => {
+      if (!data.published_at) return;
+      const d = new Date(data.published_at);
+      const ver = d.getFullYear() + '.' +
+        String(d.getMonth() + 1).padStart(2, '0') + '.' +
+        String(d.getDate()).padStart(2, '0');
+      document.querySelectorAll('.dl-version').forEach(el => el.textContent = ver);
+    })
+    .catch(() => {});
+</script>
 </body>
 </html>
