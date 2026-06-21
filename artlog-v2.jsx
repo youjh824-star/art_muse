@@ -102,19 +102,21 @@ function loginBackMode() {
 }
 
 // ─── Plan System ───────────────────────────────────────────────
-const MASTER_EMAIL = "admin@artmuse.kr";
+const MASTER_EMAIL = import.meta.env.VITE_MASTER_EMAIL || "";
+const MASTER_EMAILS = (import.meta.env.VITE_MASTER_EMAILS || "").split(",").map(e=>e.trim()).filter(Boolean);
+const isMasterEmail = (email) => !!email && (email === MASTER_EMAIL || MASTER_EMAILS.includes(email));
 const PLANS = {
   free:     { label:"Free",     color:"#8C7B72", price:0,      maxStudents:15, maxPhotosPerMonth:10 },
   standard: { label:"Standard", color:"#7A9E7E", price:37000,  maxStudents:Infinity, maxPhotosPerMonth:Infinity },
   premium:  { label:"Premium",  color:"#C9A84C", price:79000,  maxStudents:Infinity, maxPhotosPerMonth:Infinity },
 };
 function getEffectivePlan(userEmail, academyPlan) {
-  if (userEmail === MASTER_EMAIL) return "premium";
+  if (isMasterEmail(userEmail)) return "premium";
   return academyPlan ?? "free";
 }
 function usePlan(userEmail, academy) {
   const plan = getEffectivePlan(userEmail, academy?.plan);
-  const isMaster = userEmail === MASTER_EMAIL;
+  const isMaster = isMasterEmail(userEmail);
   const planInfo = PLANS[plan] ?? PLANS.free;
   const canDo = (feature) => {
     if (feature === "ai_feedback" || feature === "templates") return plan !== "free";
@@ -408,50 +410,26 @@ AI가 작성한 느낌이 나지 않아야 합니다.
 }
 
 async function fetchOpenAIChat(prompt) {
-  const model = import.meta.env.VITE_OPENAI_MODEL || "gpt-4o-mini";
-  const useProxy = import.meta.env.DEV;
-  const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-
-  if (!useProxy && !apiKey) {
-    throw new Error(
-      "OpenAI API 키가 설정되지 않았습니다. 프로젝트 루트 .env에 VITE_OPENAI_API_KEY를 추가해 주세요."
-    );
-  }
-
-  const url = useProxy
-    ? "/api/openai/v1/chat/completions"
-    : "https://api.openai.com/v1/chat/completions";
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+  const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const url = `${SUPABASE_URL}/functions/v1/openai-proxy`;
 
   const res = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(useProxy ? {} : { Authorization: `Bearer ${apiKey}` }),
+      "apikey": SUPABASE_ANON,
+      "Authorization": `Bearer ${SUPABASE_ANON}`,
     },
-    body: JSON.stringify({
-      model,
-      messages: [
-        {
-          role: "system",
-          content: AI_FEEDBACK_SYSTEM,
-        },
-        { role: "user", content: prompt },
-      ],
-      max_tokens: 1500,
-    }),
+    body: JSON.stringify({ prompt }),
   });
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    if (useProxy && res.status === 404) {
-      throw new Error(
-        "개발 서버에 OpenAI 프록시가 없습니다. 루트 .env에 VITE_OPENAI_API_KEY를 넣고 npm run dev 를 다시 실행하세요."
-      );
-    }
-    throw new Error(data.error?.message || `OpenAI API 오류 (${res.status})`);
+    throw new Error(data.error ?? `AI 오류 (${res.status})`);
   }
 
-  const text = data.choices?.[0]?.message?.content?.trim();
+  const text = data.text;
   if (!text) throw new Error("응답을 생성하지 못했습니다.");
   return text;
 }

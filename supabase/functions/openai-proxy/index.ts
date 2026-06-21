@@ -9,14 +9,18 @@
 const ALLOWED_ORIGINS = [
   "https://admin.artmuse.kr",
   "https://parent.artmuse.kr",
+  "https://art-muse.vercel.app",
 ];
 
 const AI_FEEDBACK_SYSTEM =
   "당신은 실제 미술학원을 운영하며 학부모 상담과 학생 작품 피드백을 자주 작성하는 미술 선생님입니다. AI가 쓴 것처럼 보이면 안 됩니다. 실제 수업 직후 학부모에게 보내는 담백하고 자연스러운 피드백만 작성하세요.";
 
 function corsHeaders(origin: string | null) {
+  // file:// (APK)는 origin이 null로 옴 → 허용
   const allowed =
-    origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+    origin === null || ALLOWED_ORIGINS.includes(origin)
+      ? (origin ?? "*")
+      : ALLOWED_ORIGINS[0];
   return {
     "Access-Control-Allow-Origin": allowed,
     "Access-Control-Allow-Headers": "authorization, content-type",

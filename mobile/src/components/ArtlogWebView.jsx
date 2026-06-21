@@ -152,11 +152,11 @@ export default function ArtlogWebView() {
         domStorageEnabled
         allowsInlineMediaPlayback
         mediaPlaybackRequiresUserAction={false}
-        originWhitelist={["*"]}
-        mixedContentMode="always"
-        allowFileAccess
-        allowFileAccessFromFileURLs
-        allowUniversalAccessFromFileURLs
+        originWhitelist={useEmbedded ? ["file://*"] : ["http://localhost:*", "http://10.0.2.2:*"]}
+        mixedContentMode={useEmbedded ? "never" : "always"}
+        allowFileAccess={useEmbedded}
+        allowFileAccessFromFileURLs={useEmbedded}
+        allowUniversalAccessFromFileURLs={useEmbedded}
         setSupportMultipleWindows={false}
         onLoadStart={() => setLoading(true)}
         onLoadEnd={() => {
