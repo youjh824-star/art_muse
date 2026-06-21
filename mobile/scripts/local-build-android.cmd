@@ -102,3 +102,42 @@ echo.
 echo Install on USB device:
 echo   adb install -r "%APK_DEST%"
 echo.
+
+echo [5/4] Uploading APK to GitHub Releases...
+where gh >nul 2>&1
+if errorlevel 1 (
+  echo WARNING: gh CLI not found, skipping GitHub upload.
+  echo          Install from https://cli.github.com and run: gh auth login
+  goto :end
+)
+gh auth status >nul 2>&1
+if errorlevel 1 (
+  echo WARNING: gh not logged in. Run: gh auth login
+  goto :end
+)
+
+rem APK 파일명을 variant별로 고정 (랜딩페이지 링크와 일치)
+set "RELEASE_APK_NAME=app-%VARIANT%.apk"
+set "RELEASE_TAG=latest-release"
+set "REPO=youjh824-star/art_muse"
+
+rem 기존 latest-release 태그 삭제 후 재생성 (항상 최신 유지)
+gh release delete %RELEASE_TAG% --repo %REPO% --yes >nul 2>&1
+git tag -d %RELEASE_TAG% >nul 2>&1
+git push origin :refs/tags/%RELEASE_TAG% >nul 2>&1
+
+gh release create %RELEASE_TAG% "%APK_DEST%#%RELEASE_APK_NAME%" ^
+  --repo %REPO% ^
+  --title "최신 버전" ^
+  --notes "자동 업로드 - %VARIANT% APK" ^
+  --latest
+
+if errorlevel 1 (
+  echo WARNING: GitHub upload failed. APK is saved locally at %APK_DEST%
+) else (
+  echo GitHub Release upload complete!
+  echo Download URL: https://github.com/%REPO%/releases/latest/download/%RELEASE_APK_NAME%
+)
+echo.
+
+:end
