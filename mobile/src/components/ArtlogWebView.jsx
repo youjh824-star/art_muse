@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { registerForPushNotifications } from "../native/notifications";
 import { requestMediaPermissions } from "../native/media";
 import {
@@ -64,24 +64,31 @@ function webAppHint(useEmbedded) {
 
 export default function ArtlogWebView() {
   const webRef = useRef(null);
+  const pushTokenRef = useRef(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const useEmbedded = isEmbeddedWebMode();
   const webAppUrl = resolveWebAppUrl();
 
+  const injectPushToken = useCallback((token) => {
+    if (!token || !webRef.current) return;
+    webRef.current.injectJavaScript(
+      `window.__nativePushToken = ${JSON.stringify(token)};
+       window.dispatchEvent(new CustomEvent('nativePushToken', { detail: ${JSON.stringify(token)} }));
+       true;`
+    );
+  }, []);
+
   useEffect(() => {
     registerForPushNotifications()
       .then((token) => {
-        if (token && webRef.current) {
-          // 웹앱에 push token 전달 → Supabase 저장
-          webRef.current.injectJavaScript(
-            `window.__nativePushToken = ${JSON.stringify(token)}; true;`
-          );
-        }
+        if (!token) return;
+        pushTokenRef.current = token;
+        injectPushToken(token);
       })
       .catch((e) => console.warn("Push registration:", e.message));
     requestMediaPermissions().catch(() => {});
-  }, []);
+  }, [injectPushToken]);
 
   const onMessage = async (event) => {
     try {
@@ -139,7 +146,10 @@ export default function ArtlogWebView() {
         allowUniversalAccessFromFileURLs
         setSupportMultipleWindows={false}
         onLoadStart={() => setLoading(true)}
-        onLoadEnd={() => setLoading(false)}
+        onLoadEnd={() => {
+          setLoading(false);
+          if (pushTokenRef.current) injectPushToken(pushTokenRef.current);
+        }}
         onError={(e) => setError(e.nativeEvent.description ?? "WebView 오류")}
         onHttpError={(e) =>
           setError(`HTTP ${e.nativeEvent.statusCode} — Vite 서버 확인`)

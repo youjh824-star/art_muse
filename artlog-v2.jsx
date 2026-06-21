@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { showAlert, wireShowAlert } from "./src/lib/showAlert.js";
 import { buildParentInviteMessage } from "./src/lib/urls.js";
 import { authErrorMessage, dbErrorMessage } from "./src/lib/authErrors.js";
@@ -7,6 +8,7 @@ import { requireSupabase } from "./src/lib/supabase.js";
 import { useArtlogAppState, subscribeQueue } from "./src/hooks/useArtlogAppState.js";
 import { useFeedbackReplies, useFeedbackReplyMutation } from "./src/hooks/useFeedbackReplies.js";
 import { useMessages, useMessageMutations, useLatestMessagesByStudent, useUnreadCountByStudent } from "./src/hooks/useMessages.js";
+import { useAttendanceMutations } from "./src/hooks/useAttendance.js";
 import { groupLinkedParentsByAccount, sortFeedbacksRecentFirst } from "./src/lib/mappers.js";
 import {
   defaultNotifyDateTime,
@@ -562,13 +564,34 @@ function resolveLogoUrl(logoUrl) {
 }
 
 // ─── Push Notification ────────────────────────────────────────
+const _PUSH_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/push-notify`;
+const _PUSH_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+async function invokePushNotify({ tokens, title, body, data }) {
+  if (!tokens?.length || !_PUSH_URL) return;
+  try {
+    await fetch(_PUSH_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${_PUSH_KEY}` },
+      body: JSON.stringify({ tokens, title, body, data }),
+    });
+  } catch { /* silent */ }
+}
+
 async function savePushToken(userId, token) {
   if (!token || !userId) return;
   try {
     const sb = requireSupabase();
-    await sb.from("profiles").update({ push_token: token }).eq("id", userId);
-    await sb.from("parent_student_links").update({ push_token: token }).eq("parent_user_id", userId);
-  } catch { /* silent */ }
+    const { error: profileErr } = await sb.from("profiles").update({ push_token: token }).eq("id", userId);
+    if (profileErr) throw profileErr;
+    const { error: linkErr } = await sb
+      .from("parent_student_links")
+      .update({ push_token: token })
+      .eq("parent_user_id", userId);
+    if (linkErr) throw linkErr;
+  } catch (e) {
+    logBackgroundError("save_push_token", e);
+  }
 }
 
 async function sendPushToParents({ academyId, studentIds, title, body, data }) {
@@ -578,8 +601,7 @@ async function sendPushToParents({ academyId, studentIds, title, body, data }) {
     if (studentIds?.length) query = query.in("student_id", studentIds);
     const { data: rows } = await query;
     const tokens = [...new Set((rows ?? []).map(r => r.push_token).filter(Boolean))];
-    if (!tokens.length) return;
-    await sb.functions.invoke("push-notify", { body: { tokens, title, body, data } });
+    await invokePushNotify({ tokens, title, body, data });
   } catch { /* silent */ }
 }
 
@@ -1353,7 +1375,7 @@ const FeedbackMessageRow=({feedback:f,showStudent=false,onOpen,onEdit,onDelete,e
 };
 
 // ─── TABS ──────────────────────────────────────────────────
-const ADMIN_TABS =[{id:"home",icon:"⌂",label:"홈"},{id:"students",icon:"◉",label:"학생"},{id:"artworks",icon:"◈",label:"작품"},{id:"chat",icon:"💬",label:"채팅"},{id:"schedule",icon:"📅",label:"일정"},{id:"more",icon:"⋯",label:"더보기"}];
+const ADMIN_TABS =[{id:"home",icon:"⌂",label:"홈"},{id:"students",icon:"◉",label:"학생"},{id:"artworks",icon:"◈",label:"작품"},{id:"chat",icon:"💬",label:"채팅"},{id:"attendance",icon:"✅",label:"출석"},{id:"more",icon:"⋯",label:"더보기"}];
 const PARENT_TABS=[{id:"phome",icon:"🏠",label:"홈"},{id:"partworks",icon:"🖼",label:"작품"},{id:"pfeedback",icon:"💬",label:"피드백"},{id:"pschedule",icon:"📅",label:"일정"},{id:"pnotice",icon:"📢",label:"공지"},{id:"pchat",icon:"📨",label:"채팅"},{id:"psettings",icon:"⚙️",label:"설정"}];
 
 // ══════════════════════════════════════════════════════════════
@@ -3291,7 +3313,7 @@ const AdminSchedule=({schedules,students=[],onAddSchedule,onUpdateSchedule,onDel
 // ══════════════════════════════════════════════════════════════
 // PARENT SCHEDULE (read-only calendar)
 // ══════════════════════════════════════════════════════════════
-const ParentScheduleCalendar=({student,schedules})=>{
+const ParentScheduleCalendar=({student,schedules,attendanceRecords=[]})=>{
   const now=new Date();
   const[year,setYear]=useState(now.getFullYear());
   const[mon,setMon]=useState(now.getMonth()+1);
@@ -3303,6 +3325,16 @@ const ParentScheduleCalendar=({student,schedules})=>{
   const viewMonthKey=`${year}-${String(mon).padStart(2,"0")}`;
   const duePaid=isPaidForMonth(student, viewMonthKey);
   const currentMonthPaid=isPaidForMonth(student, getCalendarMonthKey());
+
+  const monthAttendRows=useMemo(()=>(attendanceRecords??[]).filter(r=>r.student_id===student.id&&String(r.attendance_date).startsWith(viewMonthKey)),[attendanceRecords,student.id,viewMonthKey]);
+  const fmtHM=iso=>{ if(!iso)return""; const d=new Date(iso); return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; };
+  const selDayStr=`${year}-${String(mon).padStart(2,"0")}-${String(selDay).padStart(2,"0")}`;
+  const selDayRows=monthAttendRows.filter(r=>String(r.attendance_date).slice(0,10)===selDayStr);
+  const monthTotalMins=useMemo(()=>monthAttendRows.reduce((acc,r)=>{
+    if(!r.checked_at||!r.checked_out_at)return acc;
+    const diff=(new Date(r.checked_out_at)-new Date(r.checked_at))/60000;
+    return diff>0?acc+diff:acc;
+  },0),[monthAttendRows]);
 
   const evForDay=d=>{
     const extra=[];
@@ -3394,8 +3426,41 @@ const ParentScheduleCalendar=({student,schedules})=>{
         </div>
       </Card>
 
+      {monthTotalMins>0&&(
+        <Card style={{marginBottom:12,background:"#E8F5E9",border:"1px solid #C8E6C9",display:"flex",alignItems:"center",gap:10}}>
+          <div style={{fontSize:24}}>⏱️</div>
+          <div>
+            <div style={{fontSize:12,color:"#2E7D32",fontWeight:700}}>이번달 총 수업시간</div>
+            <div style={{fontSize:16,fontWeight:800,color:"#1B5E20"}}>{Math.floor(monthTotalMins/60)}시간 {Math.round(monthTotalMins%60)}분</div>
+          </div>
+        </Card>
+      )}
       <SecTitle>{mon}월 {selDay}일</SecTitle>
-      {selEvs.length===0?(
+      {selDayRows.length>0&&(
+        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:8}}>
+          {selDayRows.map((r,i)=>{
+            const statusMap={present:{l:"출석",c:"#2E7D32",bg:"#E8F5E9"},late:{l:"지각",c:"#F57F17",bg:"#FFF8E1"},absent:{l:"결석",c:"#C62828",bg:"#FFEBEE"},makeup:{l:"보강",c:"#1565C0",bg:"#E3F2FD"}};
+            const sc=statusMap[r.status]??{l:r.status,c:C.warm,bg:C.beige};
+            return(
+              <Card key={r.id??i} style={{display:"flex",gap:12,alignItems:"center",background:sc.bg,border:`1px solid ${sc.c}30`}}>
+                <div style={{fontSize:20}}>📋</div>
+                <div style={{flex:1}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:13,fontWeight:700,color:sc.c}}>{sc.l}</span>
+                    {r.class_time&&<span style={{fontSize:11,color:C.warm}}>{r.class_time} 수업</span>}
+                  </div>
+                  <div style={{fontSize:11,color:C.warm,marginTop:3,display:"flex",gap:10}}>
+                    {r.checked_at&&<span>입실 {fmtHM(r.checked_at)}</span>}
+                    {r.checked_out_at&&<span>하원 {fmtHM(r.checked_out_at)}</span>}
+                    {r.checked_at&&r.checked_out_at&&(()=>{const m=Math.round((new Date(r.checked_out_at)-new Date(r.checked_at))/60000);return m>0?<span style={{color:"#2E7D32",fontWeight:600}}>{Math.floor(m/60)}시간{m%60>0?` ${m%60}분`:""}</span>:null;})()}
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+      {selEvs.length===0&&selDayRows.length===0?(
         <Card style={{textAlign:"center",padding:"24px 0",color:C.warm,fontSize:13}}>등록된 일정이 없습니다</Card>
       ):(
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -3989,6 +4054,120 @@ const UpgradePage = ({ onBack, plan, isMaster }) => {
   );
 };
 
+const STATUS_BTN_CFG = [
+  {status:"present",label:"출석",bg:"#E8F5E9",color:"#2E7D32"},
+  {status:"late",label:"지각",bg:"#FFF8E1",color:"#F57F17"},
+  {status:"absent",label:"결석",bg:"#FFEBEE",color:"#C62828"},
+  {status:"checkout",label:"하원",bg:"#E3F2FD",color:"#1565C0"},
+];
+
+const AdminAttendanceTab=({students,attendanceRecords,academyId,classTimes})=>{
+  const today=new Date().toISOString().slice(0,10);
+  const todayDow=todayDowCode();
+  const[expanded,setExpanded]=useState(null);
+  const{upsertAttendance,checkOut}=useAttendanceMutations(academyId);
+
+  const todayRecordMap=useMemo(()=>{
+    const map={};
+    for(const r of (attendanceRecords??[])){
+      if(String(r.attendance_date).slice(0,10)===today){
+        map[attendKey(r.student_id,r.class_time)]=r;
+      }
+    }
+    return map;
+  },[attendanceRecords,today]);
+
+  const grouped=useMemo(()=>{
+    const times=[...new Set([...(classTimes??[]),...(students??[]).map(s=>s.classTime).filter(Boolean)])].sort();
+    return times.map(t=>({
+      time:t,
+      students:(students??[]).filter(s=>s.classTime===t&&(s.classDay??[]).includes(todayDow)),
+    })).filter(g=>g.students.length>0);
+  },[students,classTimes,todayDow]);
+
+  const handleAction=async(student,action)=>{
+    const ct=student.classTime||classTimes?.[0]||"";
+    if(action==="checkout"){
+      await checkOut.mutateAsync({studentId:student.id,classTime:ct,date:today});
+    } else {
+      await upsertAttendance.mutateAsync({studentId:student.id,studentName:student.name,status:action,classTime:ct,date:today});
+    }
+    setExpanded(null);
+  };
+
+  const fmtTime=iso=>{ if(!iso)return""; const d=new Date(iso); return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; };
+
+  return(
+    <div style={{padding:"0 16px 80px"}}>
+      <div style={{padding:"16px 0 8px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div>
+          <div style={{fontSize:11,color:C.warm,marginBottom:2}}>오늘 출석 관리</div>
+          <div style={{fontSize:18,fontWeight:800,color:C.charcoal}}>{formatKoreanDate()} 출석</div>
+        </div>
+      </div>
+      {grouped.length===0?(
+        <Card style={{textAlign:"center",padding:"40px 0",color:C.warm,fontSize:13}}>오늘 수업이 없거나 등록된 학생이 없습니다</Card>
+      ):(
+        grouped.map(group=>(
+          <div key={group.time} style={{marginBottom:20}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+              <div style={{fontSize:13,fontWeight:800,color:C.terra}}>🕐 {group.time}</div>
+              <div style={{fontSize:11,color:C.warm}}>{group.students.length}명</div>
+            </div>
+            <Card style={{padding:0,overflow:"hidden"}}>
+              {group.students.map((s,i,arr)=>{
+                const key=attendKey(s.id,s.classTime);
+                const rec=todayRecordMap[key];
+                const status=rec?.status;
+                const checkedIn=rec?.checked_at;
+                const checkedOut=rec?.checked_out_at;
+                const isExp=expanded===`${s.id}:${s.classTime}`;
+                const statusCfg=STATUS_BTN_CFG.find(b=>b.status===status);
+                return(
+                  <div key={s.id}>
+                    <div
+                      onClick={()=>setExpanded(isExp?null:`${s.id}:${s.classTime}`)}
+                      style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:i<arr.length-1||isExp?`1px solid ${C.beige}`:"none",cursor:"pointer"}}
+                    >
+                      <div style={{width:38,height:38,borderRadius:19,background:statusCfg?.bg??C.cream,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>
+                        {s.art||"🎨"}
+                      </div>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:14,fontWeight:600,color:C.charcoal}}>{s.name}</div>
+                        <div style={{fontSize:11,color:C.warm,marginTop:1,display:"flex",gap:6,flexWrap:"wrap"}}>
+                          {status&&<span style={{color:statusCfg?.color,fontWeight:700}}>{statusCfg?.label??status}</span>}
+                          {checkedIn&&<span>입 {fmtTime(checkedIn)}</span>}
+                          {checkedOut&&<span>퇴 {fmtTime(checkedOut)}</span>}
+                          {!status&&<span style={{color:C.light}}>미처리</span>}
+                        </div>
+                      </div>
+                      <span style={{color:C.light,fontSize:16,transform:isExp?"rotate(90deg)":"none",transition:"transform .2s"}}>›</span>
+                    </div>
+                    {isExp&&(
+                      <div style={{display:"flex",gap:8,padding:"10px 16px 12px",background:C.cream,borderBottom:i<arr.length-1?`1px solid ${C.beige}`:"none",flexWrap:"wrap"}}>
+                        {STATUS_BTN_CFG.map(btn=>{
+                          const active=btn.status==="checkout"?!!checkedOut:status===btn.status;
+                          return(
+                            <button
+                              key={btn.status}
+                              onClick={()=>handleAction(s,btn.status)}
+                              style={{flex:"1 0 auto",padding:"8px 4px",borderRadius:10,border:`1.5px solid ${active?btn.color+"80":C.beige}`,background:active?btn.bg:"white",color:active?btn.color:C.warm,fontSize:13,fontWeight:active?700:400,cursor:"pointer",minWidth:64}}
+                            >{btn.label}</button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </Card>
+          </div>
+        ))
+      )}
+    </div>
+  );
+};
+
 const AdminMore=({students,onNavigate,academy,logoSrc})=>(
   <div style={{padding:"0 16px 16px"}}>
     <div style={{fontSize:18,fontWeight:800,color:C.charcoal,padding:"16px 0"}}>더보기</div>
@@ -4007,6 +4186,7 @@ const AdminMore=({students,onNavigate,academy,logoSrc})=>(
     <Card style={{padding:0}}>
       {[
         {icon:"⭐",label:"플랜 업그레이드", sub:"Free·Standard·Premium", page:"upgrade"},
+        {icon:"📅",label:"일정 관리",    sub:"수업·보강·휴원 일정", page:"schedule"},
         {icon:"₩",label:"수강료 관리",    sub:"납부·미납 확인",     page:"payments"},
         {icon:"📢",label:"공지 관리",    sub:"학부모 공지 발송",  page:"notice"},
         {icon:"📊",label:"월별 통계",    sub:"매출·출석 분석",   page:"stats"},
@@ -4387,7 +4567,7 @@ const ParentFeedback=({student,feedbacks,onMarkRead,userId,academyId})=>{
 // ── 원장: 학생 채팅 탭 ───────────────────────────────────────
 const AdminStudentChat=({student,academyId,adminId})=>{
   const{data:msgs=[],isLoading}=useMessages(academyId,student.id,{refetchInterval:8000});
-  const{sendMessage,markRead}=useMessageMutations(academyId,student.id);
+  const{sendMessage,markRead}=useMessageMutations(academyId,student.id,{studentName:student.name});
   const scrollRef=useRef(null);
 
   useEffect(()=>{
@@ -4401,16 +4581,7 @@ const AdminStudentChat=({student,academyId,adminId})=>{
   },[msgs]);
 
   const handleSend=async(content)=>{
-    sendMessage.mutate({senderId:adminId,senderRole:"admin",content},{
-      onSuccess:async()=>{
-        try{
-          const sb=requireSupabase();
-          const{data:rows}=await sb.from("parent_student_links").select("push_token").eq("academy_id",academyId).eq("student_id",student.id).not("push_token","is",null);
-          const tokens=(rows??[]).map(r=>r.push_token).filter(Boolean);
-          if(tokens.length) await sb.functions.invoke("push-notify",{body:{tokens,title:"선생님 메시지",body:content.length>40?content.slice(0,40)+"…":content,data:{type:"message"}}});
-        }catch{}
-      }
-    });
+    sendMessage.mutate({senderId:adminId,senderRole:"admin",content});
   };
 
   return(
@@ -4433,7 +4604,7 @@ const AdminStudentChat=({student,academyId,adminId})=>{
 // ── 원장: DM 채팅방 (학생 1명) ──────────────────────────────
 const AdminChatRoom=({student,academyId,adminId,onBack})=>{
   const{data:msgs=[],isLoading}=useMessages(academyId,student.id,{refetchInterval:4000});
-  const{sendMessage,markRead}=useMessageMutations(academyId,student.id);
+  const{sendMessage,markRead}=useMessageMutations(academyId,student.id,{studentName:student.name});
   const scrollRef=useRef(null);
 
   useEffect(()=>{
@@ -4445,16 +4616,7 @@ const AdminChatRoom=({student,academyId,adminId,onBack})=>{
   },[msgs]);
 
   const handleSend=async(content)=>{
-    sendMessage.mutate({senderId:adminId,senderRole:"admin",content},{
-      onSuccess:async()=>{
-        try{
-          const sb=requireSupabase();
-          const{data:rows}=await sb.from("parent_student_links").select("push_token").eq("academy_id",academyId).eq("student_id",student.id).not("push_token","is",null);
-          const tokens=(rows??[]).map(r=>r.push_token).filter(Boolean);
-          if(tokens.length) await sb.functions.invoke("push-notify",{body:{tokens,title:`선생님: ${student.name}`,body:content.length>50?content.slice(0,50)+"…":content,data:{type:"message"}}});
-        }catch{}
-      }
-    });
+    sendMessage.mutate({senderId:adminId,senderRole:"admin",content});
   };
 
   const CHAT_MSG_H="calc(92vh - 320px)";
@@ -4581,21 +4743,7 @@ const ParentChatPage=({student,academyId,userId})=>{
   },[msgs]);
 
   const handleSend=async(content)=>{
-    sendMessage.mutate({senderId:userId,senderRole:"parent",content},{
-      onSuccess:async()=>{
-        try{
-          const sb=requireSupabase();
-          // 원장 push token 조회 (academies.owner_id → profiles.push_token)
-          const{data:academy}=await sb.from("academies").select("owner_id").eq("id",academyId).single();
-          if(academy?.owner_id){
-            const{data:prof}=await sb.from("profiles").select("push_token").eq("id",academy.owner_id).single();
-            if(prof?.push_token){
-              await sb.functions.invoke("push-notify",{body:{tokens:[prof.push_token],title:`학부모 메시지`,body:content.length>50?content.slice(0,50)+"…":content,data:{type:"message"}}});
-            }
-          }
-        }catch{}
-      }
-    });
+    sendMessage.mutate({senderId:userId,senderRole:"parent",content});
   };
 
   const CHAT_MSG_H="calc(92vh - 440px)";
@@ -6067,12 +6215,42 @@ export default function App(){
   const userEmail = auth.user?.email;
   const { plan, planInfo, isMaster, canDo } = usePlan(userEmail, academy);
 
-  // 앱 시작 시 native push token → Supabase 저장
+  // ─── 탭 배지 (읽지 않은 채팅/피드백) ──────────────────────────
+  const { data: adminChatUnreadMap } = useUnreadCountByStudent(isAdmin ? academyId : null);
+  const adminChatUnread = Object.values(adminChatUnreadMap ?? {}).reduce((a, b) => a + b, 0);
+
+  const feedbackReadKey = `lastFeedbackRead_${parentStudentId}`;
+  const [lastFeedbackRead, setLastFeedbackRead] = useState(() => localStorage.getItem(feedbackReadKey) ?? "1970-01-01");
+  const parentFeedbackUnread = useMemo(() => {
+    if (!isParent || !parentStudentId) return 0;
+    return (feedbacks ?? []).filter(f => f.student_id === parentStudentId && f.created_at > lastFeedbackRead).length;
+  }, [feedbacks, parentStudentId, lastFeedbackRead, isParent]);
+
+  const { data: parentChatUnread = 0 } = useQuery({
+    queryKey: ["parent_chat_unread", academyId, parentStudentId],
+    queryFn: async () => {
+      const sb = requireSupabase();
+      const { data } = await sb.from("messages").select("id").eq("academy_id", academyId).eq("student_id", parentStudentId).eq("sender_role", "admin").eq("is_read", false);
+      return data?.length ?? 0;
+    },
+    enabled: !!academyId && !!parentStudentId && isParent,
+    refetchInterval: 10000,
+  });
+
+  const markFeedbackRead = useCallback(() => {
+    const now = new Date().toISOString();
+    localStorage.setItem(feedbackReadKey, now);
+    setLastFeedbackRead(now);
+  }, [feedbackReadKey]);
+
+  // 앱 시작 시 native push token → Supabase 저장 (타이밍 이슈 방지: 이벤트도 청취)
   useEffect(() => {
     const userId = auth.user?.id;
     if (!userId) return;
-    const token = window.__nativePushToken;
-    if (token) savePushToken(userId, token);
+    if (window.__nativePushToken) savePushToken(userId, window.__nativePushToken);
+    const handler = (e) => { if (e.detail) savePushToken(userId, e.detail); };
+    window.addEventListener('nativePushToken', handler);
+    return () => window.removeEventListener('nativePushToken', handler);
   }, [auth.user?.id]);
 
   const academySafe = academy ?? { ...ACADEMY_DEFAULTS, notifs: { ...ACADEMY_DEFAULTS.notifs } };
@@ -6346,6 +6524,7 @@ export default function App(){
     if(page==="payments_tab"||page==="payments"){ setSubPage("payments"); if(!opts?.keepTab) setAdminTab("more"); return; }
     if(page==="settings"){ setSubPage("settings"); if(!opts?.keepTab) setAdminTab("more"); return; }
     if(page==="upgrade"){ setSubPage("upgrade"); if(!opts?.keepTab) setAdminTab("more"); return; }
+    if(page==="schedule"){ setSubPage("schedule"); if(!opts?.keepTab) setAdminTab("more"); return; }
     setSubPage(page);
     if(!opts?.keepTab) setAdminTab("more");
   },[]);
@@ -6750,15 +6929,7 @@ export default function App(){
       case"home":     return <AdminHome students={students} schedules={schedules} notices={notices} feedbacks={feedbacks} onAttendTap={setAttendSt} onNavigate={handleAdminNav} attendanceMap={attendMapDisplay} logoSrc={logoSrc} classTimes={classTimesForAttendance} isNativeApp={isNativeApp} onExitApp={handleExitApp} plan={plan} isMaster={isMaster}/>;
       case"students": return <AdminStudents students={students} onSelect={setSelStudent} onUpdateStudent={onUpdateStudent} onAddStudent={onAddStudent} onDeleteStudent={onDeleteStudent} linkedStudentIds={linkedStudentIds} academyOptions={academyOptionsSafe} onUpdateAcademyOptions={handleUpdateAcademyOptions} attendanceRecords={attendanceRecords} academy={academySafe}/>;
       case"artworks": return <AdminArtworks students={students} artworks={artworks} onUpload={()=>setUploadOpen(true)} onBeforeAfter={()=>setSubPage("beforeafter")} onArtworkFeedback={handleArtworkFeedback} onEditArtwork={setEditArtwork}/>;
-      case"schedule": return (
-        <AdminSchedule
-          schedules={schedules}
-          students={students}
-          onAddSchedule={onAddSchedule}
-          onUpdateSchedule={onUpdateSchedule}
-          onDeleteSchedule={onDeleteSchedule}
-        />
-      );
+      case"attendance": return <AdminAttendanceTab students={students} attendanceRecords={attendanceRecords} academyId={academyId} classTimes={classTimesForAttendance}/>;
       case"chat":     return <AdminDMPage students={students} academyId={academyId} adminId={auth.user?.id}/>;
       case"more":     return <AdminMore students={students} onNavigate={handleAdminNav} academy={academySafe} logoSrc={logoSrc}/>;
       default:        return <AdminHome students={students} schedules={schedules} notices={notices} feedbacks={feedbacks} onAttendTap={setAttendSt} onNavigate={handleAdminNav} attendanceMap={attendMapDisplay} logoSrc={logoSrc} classTimes={classTimesForAttendance} isNativeApp={isNativeApp} onExitApp={handleExitApp}/>;
@@ -6829,7 +7000,7 @@ export default function App(){
       case"phome":     return <>{parentHeader}<ParentHome key={parentChild.id} student={parentChild} feedbacks={feedbacks} artworks={artworks} notices={parentNotices} attendanceRecords={attendanceRecords} schedules={schedules} onTab={setParentTab}/></>;
       case"partworks": return <>{parentHeader}<ParentArtworks key={parentChild.id} student={parentChild} artworks={artworks} academy={academySafe} feedbacks={feedbacks} onUpload={()=>setParentUploadOpen(true)}/></>;
       case"pfeedback": return <>{parentHeader}<ParentFeedback key={parentChild.id} student={parentChild} feedbacks={feedbacks} onMarkRead={markFeedbacksRead} userId={auth.user?.id} academyId={academyId}/></>;
-      case"pschedule": return <>{parentHeader}<ParentScheduleCalendar key={parentChild.id} student={parentChild} schedules={schedules}/></>;
+      case"pschedule": return <>{parentHeader}<ParentScheduleCalendar key={parentChild.id} student={parentChild} schedules={schedules} attendanceRecords={attendanceRecords}/></>;
       case"pnotice":   return <>{parentHeader}<NoticeManager isParent notices={parentNotices} onBack={()=>setParentTab("phome")} onAddNotice={()=>{}} onUpdateNotice={()=>{}} onDeleteNotice={()=>{}}/></>;
       case"pchat":     return <>{parentHeader}<ParentChatPage key={parentChild.id} student={parentChild} academyId={academyId} userId={auth.user?.id}/></>;
       default:         return <>{parentHeader}<ParentHome key={parentChild.id} student={parentChild} feedbacks={feedbacks} artworks={artworks} notices={parentNotices} attendanceRecords={attendanceRecords} schedules={schedules} onTab={setParentTab}/></>;
@@ -6889,25 +7060,40 @@ export default function App(){
 
           {showAdminTabs&&(
             <div style={{position:"absolute",bottom:0,left:0,right:0,background:C.white,borderTop:`1px solid ${C.beige}`,display:"flex",zIndex:100}}>
-              {ADMIN_TABS.map(tab=>(
-                <button key={tab.id} onClick={()=>{setAdminTab(tab.id);setSubPage(null);}} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",padding:"10px 0 12px",background:"none",border:"none",cursor:"pointer",gap:3,color:adminTab===tab.id?C.terra:C.warm,position:"relative"}}>
-                  {adminTab===tab.id&&<div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",width:28,height:2,borderRadius:2,background:C.terra}}/>}
-                  <span style={{fontSize:18,lineHeight:1}}>{tab.icon}</span>
-                  <span style={{fontSize:9,fontWeight:adminTab===tab.id?700:400}}>{tab.label}</span>
-                </button>
-              ))}
+              {ADMIN_TABS.map(tab=>{
+                const badge = tab.id==="chat" && adminChatUnread>0;
+                return(
+                  <button key={tab.id} onClick={()=>{setAdminTab(tab.id);setSubPage(null);}} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",padding:"10px 0 12px",background:"none",border:"none",cursor:"pointer",gap:3,color:adminTab===tab.id?C.terra:C.warm,position:"relative"}}>
+                    {adminTab===tab.id&&<div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",width:28,height:2,borderRadius:2,background:C.terra}}/>}
+                    <span style={{fontSize:18,lineHeight:1,position:"relative",display:"inline-block"}}>
+                      {tab.icon}
+                      {badge&&<span style={{position:"absolute",top:-2,right:-4,width:8,height:8,borderRadius:"50%",background:"#E53935",border:"1.5px solid #fff"}}/>}
+                    </span>
+                    <span style={{fontSize:9,fontWeight:adminTab===tab.id?700:400}}>{tab.label}</span>
+                  </button>
+                );
+              })}
             </div>
           )}
 
           {showParentTabs&&(
             <div style={{position:"absolute",bottom:0,left:0,right:0,background:C.white,borderTop:`1px solid ${C.beige}`,display:"flex",zIndex:100}}>
-              {visibleParentTabs.map(tab=>(
-                <button key={tab.id} onClick={()=>setParentTab(tab.id)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",padding:"10px 0 12px",background:"none",border:"none",cursor:"pointer",gap:3,color:parentTab===tab.id?C.terra:C.warm,position:"relative"}}>
-                  {parentTab===tab.id&&<div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",width:28,height:2,borderRadius:2,background:C.terra}}/>}
-                  <span style={{fontSize:18,lineHeight:1}}>{tab.icon}</span>
-                  <span style={{fontSize:9,fontWeight:parentTab===tab.id?700:400}}>{tab.label}</span>
-                </button>
-              ))}
+              {visibleParentTabs.map(tab=>{
+                const badge = (tab.id==="pfeedback"&&parentFeedbackUnread>0)||(tab.id==="pchat"&&parentChatUnread>0);
+                return(
+                  <button key={tab.id} onClick={()=>{
+                    setParentTab(tab.id);
+                    if(tab.id==="pfeedback") markFeedbackRead();
+                  }} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",padding:"10px 0 12px",background:"none",border:"none",cursor:"pointer",gap:3,color:parentTab===tab.id?C.terra:C.warm,position:"relative"}}>
+                    {parentTab===tab.id&&<div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",width:28,height:2,borderRadius:2,background:C.terra}}/>}
+                    <span style={{fontSize:18,lineHeight:1,position:"relative",display:"inline-block"}}>
+                      {tab.icon}
+                      {badge&&<span style={{position:"absolute",top:-2,right:-4,width:8,height:8,borderRadius:"50%",background:"#E53935",border:"1.5px solid #fff"}}/>}
+                    </span>
+                    <span style={{fontSize:9,fontWeight:parentTab===tab.id?700:400}}>{tab.label}</span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>

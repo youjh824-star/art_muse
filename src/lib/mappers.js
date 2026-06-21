@@ -120,6 +120,7 @@ export function mapNotice(row) {
     title: row.title,
     content: row.content,
     date: row.notice_date ?? row.created_at?.slice(0, 10) ?? "",
+    createdAt: row.created_at ?? null,
     important: row.important ?? false,
     scope: row.notice_scope ?? "general",
     studentId: row.student_id ?? null,

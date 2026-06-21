@@ -3,6 +3,9 @@ import { requireSupabase } from "../lib/supabase.js";
 import { mapNotice } from "../lib/mappers.js";
 import { queryKeys } from "./queryKeys.js";
 
+const _PUSH_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/push-notify`;
+const _PUSH_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
 async function sendNoticePush({ academyId, title, important }) {
   try {
     const sb = requireSupabase();
@@ -13,13 +16,15 @@ async function sendNoticePush({ academyId, title, important }) {
       .not("push_token", "is", null);
     const tokens = [...new Set((rows ?? []).map(r => r.push_token).filter(Boolean))];
     if (!tokens.length) return;
-    await sb.functions.invoke("push-notify", {
-      body: {
+    await fetch(_PUSH_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${_PUSH_KEY}` },
+      body: JSON.stringify({
         tokens,
         title: important ? `📢 중요 공지: ${title}` : "📢 새 공지사항",
         body: important ? "중요 공지가 등록되었습니다. 확인해 주세요." : title,
         data: { type: "notice" },
-      },
+      }),
     });
   } catch { /* silent */ }
 }

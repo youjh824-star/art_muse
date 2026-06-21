@@ -4,6 +4,9 @@ import { queryKeys } from "./queryKeys.js";
 
 const STATUS_LABELS = { present: "출석", late: "지각", absent: "결석", makeup: "보강" };
 
+const _PUSH_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/push-notify`;
+const _PUSH_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
 async function sendAttendancePush({ academyId, studentId, studentName, status }) {
   try {
     const sb = requireSupabase();
@@ -16,8 +19,10 @@ async function sendAttendancePush({ academyId, studentId, studentName, status })
     const tokens = (rows ?? []).map(r => r.push_token).filter(Boolean);
     if (!tokens.length) return;
     const label = STATUS_LABELS[status] ?? status;
-    await sb.functions.invoke("push-notify", {
-      body: { tokens, title: `${studentName} ${label}`, body: "아트뮤즈에서 출결 처리되었습니다.", data: { type: "attendance" } },
+    await fetch(_PUSH_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${_PUSH_KEY}` },
+      body: JSON.stringify({ tokens, title: `${studentName} ${label}`, body: "아트뮤즈에서 출결 처리되었습니다.", data: { type: "attendance" } }),
     });
   } catch { /* silent */ }
 }
@@ -106,5 +111,21 @@ export function useAttendanceMutations(academyId) {
     onSuccess: invalidate,
   });
 
-  return { upsertAttendance, syncBatch };
+  const checkOut = useMutation({
+    mutationFn: async ({ studentId, classTime, date }) => {
+      const sb = requireSupabase();
+      const attendanceDate = date ?? new Date().toISOString().slice(0, 10);
+      const { error } = await sb
+        .from("attendance")
+        .update({ checked_out_at: new Date().toISOString() })
+        .eq("academy_id", academyId)
+        .eq("student_id", studentId)
+        .eq("attendance_date", attendanceDate)
+        .eq("class_time", classTime);
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+  });
+
+  return { upsertAttendance, syncBatch, checkOut };
 }

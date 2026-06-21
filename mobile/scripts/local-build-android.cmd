@@ -86,9 +86,12 @@ if not "%BUILD_CODE%"=="0" (
 
 echo.
 echo [4/4] Done.
-echo APK:
-dir /b /s "%~dp0\..\android\app\build\outputs\apk\release\*.apk" 2>nul
+
+set "APK_SRC=%~dp0\..\android\app\build\outputs\apk\release\app-release.apk"
+set "APK_DEST=%USERPROFILE%\Desktop\app-%VARIANT%.apk"
+copy /Y "%APK_SRC%" "%APK_DEST%" >nul
+echo APK saved to: %APK_DEST%
 echo.
 echo Install on USB device:
-echo   adb install -r android\app\build\outputs\apk\release\app-release.apk
+echo   adb install -r "%APK_DEST%"
 echo.
