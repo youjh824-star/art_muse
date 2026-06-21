@@ -35,3 +35,7 @@ Thumbs.db
 # APK outputs
 *.apk
 *.aab
+
+# Firebase service account keys
+mobile/*-adminsdk-*.json
+*-adminsdk-*.json
