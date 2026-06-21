@@ -3,6 +3,7 @@ import { registerForPushNotifications } from "../native/notifications";
 import { requestMediaPermissions } from "../native/media";
 import {
   ActivityIndicator,
+  BackHandler,
   Platform,
   StyleSheet,
   View,
@@ -89,6 +90,18 @@ export default function ArtlogWebView() {
       .catch((e) => console.warn("Push registration:", e.message));
     requestMediaPermissions().catch(() => {});
   }, [injectPushToken]);
+
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (!webRef.current) return false;
+      webRef.current.injectJavaScript(
+        `window.dispatchEvent(new CustomEvent('artlog-back')); true;`
+      );
+      return true;
+    });
+    return () => sub.remove();
+  }, []);
 
   const onMessage = async (event) => {
     try {

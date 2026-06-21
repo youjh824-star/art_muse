@@ -1376,7 +1376,7 @@ const FeedbackMessageRow=({feedback:f,showStudent=false,onOpen,onEdit,onDelete,e
 
 // ─── TABS ──────────────────────────────────────────────────
 const ADMIN_TABS =[{id:"home",icon:"⌂",label:"홈"},{id:"attendance",icon:"✅",label:"출석"},{id:"students",icon:"◉",label:"학생"},{id:"artworks",icon:"◈",label:"작품"},{id:"chat",icon:"💬",label:"채팅"},{id:"more",icon:"⋯",label:"더보기"}];
-const PARENT_TABS=[{id:"phome",icon:"🏠",label:"홈"},{id:"partworks",icon:"🖼",label:"작품"},{id:"pfeedback",icon:"💬",label:"피드백"},{id:"pschedule",icon:"📅",label:"일정"},{id:"pnotice",icon:"📢",label:"공지"},{id:"pchat",icon:"📨",label:"채팅"},{id:"psettings",icon:"⚙️",label:"설정"}];
+const PARENT_TABS=[{id:"phome",icon:"🏠",label:"홈"},{id:"pfeedback",icon:"💬",label:"피드백"},{id:"pnotice",icon:"📢",label:"공지"},{id:"pchat",icon:"📨",label:"채팅"},{id:"pmore",icon:"⋯",label:"더보기"}];
 
 // ══════════════════════════════════════════════════════════════
 // 1. ADMIN HOME
@@ -3362,15 +3362,6 @@ const ParentScheduleCalendar=({student,schedules,attendanceRecords=[]})=>{
         </div>
       </Card>
 
-      {monthTotalMins>0&&(
-        <Card style={{marginBottom:12,background:"#E8F5E9",border:"1px solid #C8E6C9",display:"flex",alignItems:"center",gap:10}}>
-          <div style={{fontSize:24}}>⏱️</div>
-          <div>
-            <div style={{fontSize:12,color:"#2E7D32",fontWeight:700}}>이번달 총 수업시간</div>
-            <div style={{fontSize:16,fontWeight:800,color:"#1B5E20"}}>{Math.floor(monthTotalMins/60)}시간 {Math.round(monthTotalMins%60)}분</div>
-          </div>
-        </Card>
-      )}
       <SecTitle>{mon}월 {selDay}일</SecTitle>
       {selDayRows.length>0&&(
         <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:8}}>
@@ -3388,7 +3379,6 @@ const ParentScheduleCalendar=({student,schedules,attendanceRecords=[]})=>{
                   <div style={{fontSize:11,color:C.warm,marginTop:3,display:"flex",gap:10}}>
                     {r.checked_at&&<span>입실 {fmtHM(r.checked_at)}</span>}
                     {r.checked_out_at&&<span>하원 {fmtHM(r.checked_out_at)}</span>}
-                    {r.checked_at&&r.checked_out_at&&(()=>{const m=Math.round((new Date(r.checked_out_at)-new Date(r.checked_at))/60000);return m>0?<span style={{color:"#2E7D32",fontWeight:600}}>{Math.floor(m/60)}시간{m%60>0?` ${m%60}분`:""}</span>:null;})()}
                   </div>
                 </div>
               </Card>
@@ -4457,35 +4447,22 @@ const FeedbackThread=({feedback,academyId,userId,userRole})=>{
         <div style={{fontSize:11,color:C.warm,marginBottom:6}}>선생님 · {feedback.date}</div>
         <div style={{fontSize:13,color:C.charcoal,lineHeight:1.7,whiteSpace:"pre-wrap"}}>{feedback.content}</div>
       </div>
-      {/* 답변 스레드 */}
-      <div ref={scrollRef} style={{height:"calc(92vh - 340px)",overflowY:"auto",paddingBottom:8}}>
-        {isLoading&&<div style={{textAlign:"center",color:C.warm,fontSize:12,padding:16}}>불러오는 중…</div>}
-        {!isLoading&&replies.length===0&&(
-          <div style={{textAlign:"center",color:C.warm,fontSize:12,padding:16}}>첫 번째 답변을 남겨보세요</div>
-        )}
-        {replies.map(r=>(
-          <ChatBubble key={r.id} content={r.content} isMe={r.sender_role===userRole} time={r.created_at} role={r.sender_role}/>
-        ))}
-      </div>
-      <ChatInput onSend={handleSend} placeholder="답변을 입력하세요…" disabled={addReply.isPending}/>
     </div>
   );
 };
 
 // ── 학부모: 피드백 목록 + 답변 ────────────────────────────────
-const ParentFeedback=({student,feedbacks,onMarkRead,userId,academyId})=>{
+const ParentFeedback=({student,feedbacks,onMarkRead})=>{
   const fbs=sortFeedbacksRecentFirst(feedbacksForStudent(feedbacks, student));
-  const[openFb,setOpenFb]=useState(null);
 
   const openFeedback=(f)=>{
-    setOpenFb(f);
     if(!f.read) onMarkRead?.([f.id]);
   };
 
   return(
     <div style={{padding:"0 16px 16px",display:"flex",flexDirection:"column",flex:1}}>
       <div style={{fontSize:18,fontWeight:800,color:C.charcoal,padding:"16px 0 8px"}}>선생님 피드백</div>
-      <div style={{fontSize:12,color:C.warm,marginBottom:16}}>총 {fbs.length}개 · 피드백을 눌러 답변할 수 있어요</div>
+      <div style={{fontSize:12,color:C.warm,marginBottom:16}}>총 {fbs.length}개</div>
       {fbs.length===0?<Card style={{textAlign:"center",padding:"40px 0",color:C.warm}}>아직 피드백이 없습니다</Card>:(
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {fbs.map(f=>(
@@ -4493,12 +4470,30 @@ const ParentFeedback=({student,feedbacks,onMarkRead,userId,academyId})=>{
           ))}
         </div>
       )}
-      <BottomSheet open={!!openFb} onClose={()=>setOpenFb(null)} title={openFb?`${openFb.artEmoji} ${openFb.artwork||"수업 피드백"}`:"피드백"} fullHeight>
-        {openFb&&<FeedbackThread feedback={openFb} academyId={academyId} userId={userId} userRole="parent"/>}
-      </BottomSheet>
     </div>
   );
 };
+
+// ── 학부모: 더보기 탭 ────────────────────────────────────────
+const ParentMoreTab=({onTab})=>(
+  <div style={{padding:"16px"}}>
+    <div style={{fontSize:18,fontWeight:800,color:C.charcoal,padding:"8px 0 16px"}}>더보기</div>
+    {[
+      {icon:"🖼",label:"작품",sub:"그림·작품 갤러리",tab:"partworks"},
+      {icon:"📅",label:"일정",sub:"출결 및 수업 일정",tab:"pschedule"},
+      {icon:"⚙️",label:"설정",sub:"알림·계정 설정",tab:"psettings"},
+    ].map(item=>(
+      <Card key={item.tab} onClick={()=>onTab(item.tab)} style={{display:"flex",alignItems:"center",gap:14,marginBottom:10,cursor:"pointer"}}>
+        <span style={{fontSize:28}}>{item.icon}</span>
+        <div style={{flex:1}}>
+          <div style={{fontSize:15,fontWeight:700,color:C.charcoal}}>{item.label}</div>
+          <div style={{fontSize:12,color:C.warm,marginTop:2}}>{item.sub}</div>
+        </div>
+        <span style={{color:C.light,fontSize:18}}>›</span>
+      </Card>
+    ))}
+  </div>
+);
 
 // ── 원장: 학생 채팅 탭 ───────────────────────────────────────
 const AdminStudentChat=({student,academyId,adminId})=>{
@@ -6365,6 +6360,25 @@ export default function App(){
     window.ArtlogNative?.exitApp?.();
   }, []);
 
+  useEffect(()=>{
+    const onBack=()=>{
+      if(mode==="admin"){
+        if(selStudent){setSelStudent(null);return;}
+        if(subPage){setSubPage(null);return;}
+        if(adminTab!=="home"){setAdminTab("home");return;}
+      }
+      if(mode==="parent"){
+        if(subPage){setSubPage(null);return;}
+        const moreOnly=["partworks","pschedule","psettings"];
+        if(moreOnly.includes(parentTab)){setParentTab("pmore");return;}
+        if(parentTab!=="phome"){setParentTab("phome");return;}
+      }
+      window.ArtlogNative?.exitApp?.();
+    };
+    window.addEventListener("artlog-back",onBack);
+    return()=>window.removeEventListener("artlog-back",onBack);
+  },[mode,selStudent,subPage,adminTab,parentTab]);
+
   const handleUpdateAcademyOptions=useCallback(async (patch)=>{
     try{
       await updateOptions.mutateAsync({ ...academyOptionsSafe, ...patch });
@@ -7018,11 +7032,13 @@ export default function App(){
     );
     switch(parentTab){
       case"phome":     return <>{parentHeader}<ParentHome key={parentChild.id} student={parentChild} feedbacks={feedbacks} artworks={artworks} notices={parentNotices} attendanceRecords={attendanceRecords} schedules={schedules} onTab={setParentTab}/></>;
-      case"partworks": return <>{parentHeader}<ParentArtworks key={parentChild.id} student={parentChild} artworks={artworks} academy={academySafe} feedbacks={feedbacks} onUpload={()=>setParentUploadOpen(true)}/></>;
-      case"pfeedback": return <>{parentHeader}<ParentFeedback key={parentChild.id} student={parentChild} feedbacks={feedbacks} onMarkRead={markFeedbacksRead} userId={auth.user?.id} academyId={academyId}/></>;
-      case"pschedule": return <>{parentHeader}<ParentScheduleCalendar key={parentChild.id} student={parentChild} schedules={schedules} attendanceRecords={attendanceRecords}/></>;
+      case"pfeedback": return <>{parentHeader}<ParentFeedback key={parentChild.id} student={parentChild} feedbacks={feedbacks} onMarkRead={markFeedbacksRead}/></>;
       case"pnotice":   return <>{parentHeader}<NoticeManager isParent notices={parentNotices} onBack={()=>setParentTab("phome")} onAddNotice={()=>{}} onUpdateNotice={()=>{}} onDeleteNotice={()=>{}}/></>;
       case"pchat":     return <>{parentHeader}<ParentChatPage key={parentChild.id} student={parentChild} academyId={academyId} userId={auth.user?.id}/></>;
+      case"pmore":     return <>{parentHeader}<ParentMoreTab onTab={setParentTab}/></>;
+      case"partworks": return <>{parentHeader}<ParentArtworks key={parentChild.id} student={parentChild} artworks={artworks} academy={academySafe} feedbacks={feedbacks} onUpload={()=>setParentUploadOpen(true)}/></>;
+      case"pschedule": return <>{parentHeader}<ParentScheduleCalendar key={parentChild.id} student={parentChild} schedules={schedules} attendanceRecords={attendanceRecords}/></>;
+      case"psettings": return renderParentSettings();
       default:         return <>{parentHeader}<ParentHome key={parentChild.id} student={parentChild} feedbacks={feedbacks} artworks={artworks} notices={parentNotices} attendanceRecords={attendanceRecords} schedules={schedules} onTab={setParentTab}/></>;
     }
   };
@@ -7031,7 +7047,7 @@ export default function App(){
   const showParentTabs= mode==="parent"&&!subPage&&auth.session;
   const visibleParentTabs = parentChild
     ? PARENT_TABS
-    : PARENT_TABS.filter(t => t.id === "phome" || t.id === "psettings");
+    : PARENT_TABS.filter(t => t.id === "phome" || t.id === "pmore");
 
   return(
     <>
