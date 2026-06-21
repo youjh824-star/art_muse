@@ -783,7 +783,7 @@ const DOW_FROM_DATE = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 const DOW_KO = ["일", "월", "화", "수", "목", "금", "토"];
 
 // ─── Helpers ───────────────────────────────────────────────
-const dayName  = d => ({MON:"월",TUE:"화",WED:"수",THU:"목",FRI:"금"}[d]??d);
+const dayName  = d => ({MON:"월",TUE:"화",WED:"수",THU:"목",FRI:"금",SAT:"토",SUN:"일"}[d]??d);
 const getDept  = g => g.startsWith("유")?"kindergarten":g.startsWith("초")?"elem":g.startsWith("중")?"middle":"high";
 const deptLabel= d => ({all:"전체",kindergarten:"유치부",elem:"초등부",middle:"중등부",high:"고등부"}[d]??d);
 const attendKey= (id,t) => `${id}:${t}`;
@@ -1381,7 +1381,7 @@ const PARENT_TABS=[{id:"phome",icon:"🏠",label:"홈"},{id:"partworks",icon:"�
 // ══════════════════════════════════════════════════════════════
 // 1. ADMIN HOME
 // ══════════════════════════════════════════════════════════════
-const AdminHome=({students,schedules,notices,feedbacks,onAttendTap,onNavigate,attendanceMap,logoSrc,classTimes,isNativeApp,onExitApp,plan,isMaster})=>{
+const AdminHome=({students,schedules,notices,feedbacks,onNavigate,logoSrc,isNativeApp,onExitApp,plan,isMaster})=>{
   const generalNotices=useMemo(()=>notices.filter(n=>getNoticeScope(n)==="general"),[notices]);
   const[nowMins,setNowMins]=useState(()=>new Date().getHours()*60+new Date().getMinutes());
   const unreadFeedback=feedbacks.filter(f=>!f.read).length;
@@ -1391,16 +1391,11 @@ const AdminHome=({students,schedules,notices,feedbacks,onAttendTap,onNavigate,at
     const id=setInterval(tick,30000);
     return()=>clearInterval(id);
   },[]);
-  const activeTime=getActiveClassTime(nowMins,classTimes);
   const todayCode=todayDowCode();
   const todayStr=new Date().toISOString().slice(0,10);
   const closedToday=isAcademyClosedOnDate(schedules,todayStr);
   const todayStudents=closedToday?[]:students.filter(s=>(s.classDay??[]).includes(todayCode));
-  const activeStudents=activeTime?getActiveAttendanceStudents({
-    students,schedules,dateStr:todayStr,dowCode:todayCode,activeTime,
-  }):[];
   const unpaid=students.filter(s=>s.fee==="미납");
-  const presentCount=activeTime?activeStudents.filter(s=>getAttendStatus(attendanceMap,s,activeTime)==="present").length:0;
   const nowLabel=`${String(Math.floor(nowMins/60)).padStart(2,"0")}:${String(nowMins%60).padStart(2,"0")}`;
   const todayLabel=formatKoreanDate();
   return(
@@ -1434,59 +1429,12 @@ const AdminHome=({students,schedules,notices,feedbacks,onAttendTap,onNavigate,at
       )}
 
       <div style={{display:"flex",gap:10,marginBottom:20}}>
-        {[{l:closedToday?"보강/일정":"오늘 수업",v:closedToday?activeStudents.length:todayStudents.length,c:C.terra},{l:activeTime?`${activeTime} 출석`:"출석",v:presentCount,c:C.sage},{l:"이달 미납",v:unpaid.length,c:C.red}].map(s=>(
+        {[{l:closedToday?"보강/일정":"오늘 수업",v:todayStudents.length,c:C.terra},{l:"전체 학생",v:students.length,c:C.sage},{l:"이달 미납",v:unpaid.length,c:C.red}].map(s=>(
           <Card key={s.l} style={{flex:1,padding:12,textAlign:"center"}}>
             <div style={{fontSize:22,fontWeight:800,color:s.c}}>{s.v}</div>
             <div style={{fontSize:10,color:C.warm,marginTop:2}}>{s.l}</div>
           </Card>
         ))}
-      </div>
-
-      {/* Current class attendance — 30 min before ~ 30 min after class start */}
-      <div style={{marginBottom:20}}>
-        <SecTitle action={activeTime?"전체보기 →":undefined} onAction={()=>onNavigate("students")}>📅 출결 — {activeTime?`${activeTime} 수업`:"대기 중"}</SecTitle>
-        {!activeTime?(
-          <Card style={{textAlign:"center",padding:"24px 16px",color:C.warm,fontSize:13,lineHeight:1.7}}>
-            현재 출결 가능한 수업이 없습니다.<br/>
-            <span style={{fontSize:12}}>수업 30분 전 ~ 30분 후까지 해당 시간대 학생이 표시됩니다.</span>
-          </Card>
-        ):activeStudents.length===0?(
-          <Card style={{textAlign:"center",padding:"24px 16px",color:C.warm,fontSize:13}}>
-            {classWindowLabel(activeTime)} · 오늘 이 시간 수업 학생 없음
-          </Card>
-        ):(
-          <div>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                <Badge color="blue" small>🕐 {activeTime} · {classWindowLabel(activeTime)}</Badge>
-                <span style={{fontSize:11,color:C.warm}}>{activeStudents.length}명</span>
-              </div>
-              <span style={{fontSize:11,color:C.warm,flexShrink:0}}>
-                {activeStudents.filter(s=>getAttendStatus(attendanceMap,s,activeTime)).length}/{activeStudents.length}명 처리
-              </span>
-            </div>
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {activeStudents.map(s=>{
-                const curStatus=getAttendStatus(attendanceMap,s,activeTime);
-                return(
-                  <Card key={s.id} onClick={()=>onAttendTap({...s,attendTime:activeTime,attendStatus:curStatus,isMakeupSession:s.isMakeupSession})} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px"}}>
-                    <StudentAvatar student={s} size={44} fontSize={24}/>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                        <div style={{fontSize:14,fontWeight:700,color:C.charcoal}}>{s.name}</div>
-                        {s.isMakeupSession&&<Badge small color="green">보강</Badge>}
-                      </div>
-                      <div style={{fontSize:11,color:C.warm,marginTop:2}}>{s.grade} · {deptLabel(getDept(s.grade))}</div>
-                    </div>
-                    <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
-                      {curStatus?<StatusChip s={curStatus}/>:<span style={{fontSize:11,color:C.terra,fontWeight:600}}>터치 →</span>}
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Unpaid alert */}
@@ -1718,9 +1666,8 @@ const StudentRegisterModal=({onClose,onSave,initial=null,academyOptions,onUpdate
   const[saving,setSaving]=useState(false);
 
   const GRADES=["유4","유5","유6","유7","초1","초2","초3","초4","초5","초6","중1","중2","중3","고1","고2","고3"];
-  const DAYS=[{id:"MON",l:"월"},{id:"TUE",l:"화"},{id:"WED",l:"수"},{id:"THU",l:"목"},{id:"FRI",l:"금"}];
-  const ARTS=["🌸","🦋","🌊","🏔️","🌻","🎭","🌈","🦚","🎨","🌺","🍎","🐠"];
-  const[selArt,setSelArt]=useState(initial?.art??"🎨");
+  const DAYS=[{id:"MON",l:"월"},{id:"TUE",l:"화"},{id:"WED",l:"수"},{id:"THU",l:"목"},{id:"FRI",l:"금"},{id:"SAT",l:"토"},{id:"SUN",l:"일"}];
+  const selArt=initial?.art??"🎨";
   const[avatarMode,setAvatarMode]=useState(()=>{
     if(initial?.useEmojiAvatar) return "emoji";
     if(initial?.photoUri) return "photo";
@@ -1778,12 +1725,6 @@ const StudentRegisterModal=({onClose,onSave,initial=null,academyOptions,onUpdate
     e.target.value="";
   };
 
-  const selectEmojiAvatar=(emoji)=>{
-    setSelArt(emoji);
-    setPhotoUri(null);
-    setRawPhotoUri(null);
-    setAvatarMode("emoji");
-  };
 
   const addClassTime=(t)=>{
     if(!academyOptions.classTimes.includes(t)) onUpdateAcademyOptions({ classTimes:[...academyOptions.classTimes,t].sort() });
@@ -1907,11 +1848,6 @@ const StudentRegisterModal=({onClose,onSave,initial=null,academyOptions,onUpdate
                 />
               </div>
             )}
-            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              {ARTS.map(e=>(
-                <div key={e} onClick={()=>selectEmojiAvatar(e)} style={{width:40,height:40,borderRadius:10,background:avatarMode==="emoji"&&selArt===e?"#FFF0E6":C.beige,border:`2px solid ${avatarMode==="emoji"&&selArt===e?C.terra:"transparent"}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,cursor:"pointer",opacity:avatarMode==="photo"?0.45:1}}>{e}</div>
-              ))}
-            </div>
           </div>
 
           {[
@@ -1969,9 +1905,9 @@ const StudentRegisterModal=({onClose,onSave,initial=null,academyOptions,onUpdate
           {/* Class days */}
           <div style={{marginBottom:16}}>
             <div style={{fontSize:12,color:C.warm,marginBottom:8}}>수업 요일 (복수 선택)</div>
-            <div style={{display:"flex",gap:8}}>
+            <div style={{display:"flex",gap:6}}>
               {DAYS.map(d=>(
-                <button key={d.id} type="button" onClick={()=>toggleDay(d.id)} style={{flex:1,padding:"12px 0",borderRadius:12,background:days.includes(d.id)?C.terra:C.beige,color:days.includes(d.id)?"white":C.warm,border:"none",fontSize:14,fontWeight:700,cursor:"pointer",transition:"all .15s"}}>{d.l}</button>
+                <button key={d.id} type="button" onClick={()=>toggleDay(d.id)} style={{flex:1,padding:"12px 0",borderRadius:12,background:days.includes(d.id)?(d.id==="SAT"?"#1565C0":d.id==="SUN"?"#C62828":C.terra):C.beige,color:days.includes(d.id)?"white":d.id==="SAT"?"#1565C0":d.id==="SUN"?"#C62828":C.warm,border:days.includes(d.id)?"none":`1px solid ${d.id==="SAT"?"#BBDEFB":d.id==="SUN"?"#FFCDD2":C.beige}`,fontSize:13,fontWeight:700,cursor:"pointer",transition:"all .15s",minWidth:36}}>{d.l}</button>
               ))}
             </div>
           </div>
@@ -5037,7 +4973,85 @@ const PRIVACY_TEXT = `아트뮤즈 개인정보처리방침
 4. 제3자 제공: 법령에 따른 경우를 제외하고 제공하지 않습니다.
 5. 문의: admin@artmuse.kr`;
 
-const SettingsPage=({onBack,initTab="academy",academy,onSaveAcademy,onNavigate,onLogout,onWithdraw,onExportData,studentCount,plan,isMaster})=>{
+const ALL_DAYS=[{id:"MON",l:"월"},{id:"TUE",l:"화"},{id:"WED",l:"수"},{id:"THU",l:"목"},{id:"FRI",l:"금"},{id:"SAT",l:"토",sat:true},{id:"SUN",l:"일",sun:true}];
+
+const ClassSettingsPanel=({academyOptions,onUpdateAcademyOptions})=>{
+  const[timeInput,setTimeInput]=useState("");
+  const[feeInput,setFeeInput]=useState("");
+  const[dayInput,setDayInput]=useState("");
+  const[saved,setSaved]=useState("");
+
+  const flash=(msg)=>{ setSaved(msg); setTimeout(()=>setSaved(""),2000); };
+
+  const parseTime=(raw)=>{
+    const t=raw.trim();
+    if(/^\d{1,2}:\d{2}$/.test(t)){const[h,m]=t.split(":").map(Number);if(h>=0&&h<24&&m>=0&&m<60)return`${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;}
+    return null;
+  };
+  const parseFee=(raw)=>{const n=Number(String(raw).replace(/[^\d]/g,""));if(!n||n<10000)return null;return Math.round(n/10000)*10000;};
+  const parseDay=(raw)=>{const d=Number(String(raw).replace(/\D/g,""));if(d>=1&&d<=31)return d;return null;};
+
+  const addTime=()=>{const v=parseTime(timeInput);if(!v)return;if(!academyOptions.classTimes.includes(v))onUpdateAcademyOptions({classTimes:[...academyOptions.classTimes,v].sort()});setTimeInput("");flash("수업시간 저장됨");};
+  const removeTime=(t)=>{const next=academyOptions.classTimes.filter(x=>x!==t);if(!next.length)return;onUpdateAcademyOptions({classTimes:next});};
+  const addFee=()=>{const v=parseFee(feeInput);if(!v)return;if(!academyOptions.monthlyFees.includes(v))onUpdateAcademyOptions({monthlyFees:[...academyOptions.monthlyFees,v].sort((a,b)=>a-b)});setFeeInput("");flash("수강료 저장됨");};
+  const removeFee=(v)=>{const next=academyOptions.monthlyFees.filter(x=>x!==v);if(!next.length)return;onUpdateAcademyOptions({monthlyFees:next});};
+  const addDay=()=>{const v=parseDay(dayInput);if(!v)return;if(!academyOptions.feeDueDays.includes(v))onUpdateAcademyOptions({feeDueDays:[...academyOptions.feeDueDays,v].sort((a,b)=>a-b)});setDayInput("");flash("결제일 저장됨");};
+  const removeDay=(d)=>{const next=academyOptions.feeDueDays.filter(x=>x!==d);if(!next.length)return;onUpdateAcademyOptions({feeDueDays:next});};
+
+  const Section=({title,children})=>(
+    <div style={{marginBottom:20}}>
+      <div style={{fontSize:12,color:C.warm,fontWeight:700,marginBottom:10}}>{title}</div>
+      {children}
+    </div>
+  );
+
+  const ChipRow=({items,onRemove,label})=>(
+    <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>
+      {items.map(v=>(
+        <div key={v} style={{display:"inline-flex",alignItems:"center",gap:4,background:C.beige,borderRadius:20,padding:"6px 10px"}}>
+          <span style={{fontSize:13,fontWeight:600,color:C.charcoal}}>{label(v)}</span>
+          {items.length>1&&<button type="button" onClick={()=>onRemove(v)} style={{width:18,height:18,borderRadius:9,background:"#FDEAEA",border:"none",color:C.red,fontSize:13,cursor:"pointer",lineHeight:1,padding:0}}>×</button>}
+        </div>
+      ))}
+    </div>
+  );
+
+  return(
+    <div>
+      {saved&&<div style={{textAlign:"center",padding:"8px",background:"#E8F4EA",borderRadius:10,fontSize:12,color:C.sage,fontWeight:600,marginBottom:12}}>✓ {saved}</div>}
+
+      <Section title="수업 시간대">
+        <ChipRow items={academyOptions.classTimes} onRemove={removeTime} label={v=>v}/>
+        <div style={{display:"flex",gap:8}}>
+          <input value={timeInput} onChange={e=>setTimeInput(e.target.value)} placeholder="예: 16:00" onKeyDown={e=>e.key==="Enter"&&addTime()}
+            style={{flex:1,padding:"8px 12px",border:`1px solid ${C.light}`,borderRadius:10,fontSize:13,outline:"none",background:C.cream}}/>
+          <button type="button" onClick={addTime} style={{padding:"8px 14px",borderRadius:10,background:C.sage,color:"white",border:"none",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ 추가</button>
+        </div>
+      </Section>
+
+      <Section title="월 수강료 옵션">
+        <ChipRow items={academyOptions.monthlyFees} onRemove={removeFee} label={v=>`${v/10000}만원`}/>
+        <div style={{display:"flex",gap:8}}>
+          <input value={feeInput} onChange={e=>setFeeInput(e.target.value)} placeholder="예: 180000" onKeyDown={e=>e.key==="Enter"&&addFee()}
+            style={{flex:1,padding:"8px 12px",border:`1px solid ${C.light}`,borderRadius:10,fontSize:13,outline:"none",background:C.cream}}/>
+          <button type="button" onClick={addFee} style={{padding:"8px 14px",borderRadius:10,background:C.sage,color:"white",border:"none",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ 추가</button>
+        </div>
+      </Section>
+
+      <Section title="결제일 옵션">
+        <ChipRow items={academyOptions.feeDueDays} onRemove={removeDay} label={v=>`${v}일`}/>
+        <div style={{display:"flex",gap:8}}>
+          <input value={dayInput} onChange={e=>setDayInput(e.target.value)} placeholder="예: 15" onKeyDown={e=>e.key==="Enter"&&addDay()}
+            style={{flex:1,padding:"8px 12px",border:`1px solid ${C.light}`,borderRadius:10,fontSize:13,outline:"none",background:C.cream}}/>
+          <button type="button" onClick={addDay} style={{padding:"8px 14px",borderRadius:10,background:C.sage,color:"white",border:"none",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ 추가</button>
+        </div>
+        <div style={{fontSize:11,color:C.light,marginTop:6}}>학생별 결제일은 학생 수정에서 변경합니다</div>
+      </Section>
+    </div>
+  );
+};
+
+const SettingsPage=({onBack,initTab="academy",academy,onSaveAcademy,onNavigate,onLogout,onWithdraw,onExportData,studentCount,plan,isMaster,academyOptions,onUpdateAcademyOptions})=>{
   const[tab,setTab]=useState(initTab);
   const[academyName,setAcademyName]=useState(academy.name);
   const[tagline,setTagline]=useState(academy.tagline);
@@ -5186,7 +5200,7 @@ const SettingsPage=({onBack,initTab="academy",academy,onSaveAcademy,onNavigate,o
     onWithdraw?.();
   };
 
-  const tabs=[{id:"academy",l:"학원 정보"},{id:"notif",l:"알림 설정"},{id:"account",l:"계정"}];
+  const tabs=[{id:"academy",l:"학원 정보"},{id:"class",l:"수업 정보"},{id:"notif",l:"알림 설정"},{id:"account",l:"계정"}];
   const accountItems=[
     {id:"password",label:"비밀번호 변경"},
     {id:"parent_accounts",label:"학부모 계정 관리"},
@@ -5270,6 +5284,10 @@ const SettingsPage=({onBack,initTab="academy",academy,onSaveAcademy,onNavigate,o
             )}
             <button onClick={handleSave} style={{width:"100%",padding:14,borderRadius:12,background:C.terra,color:"white",border:"none",fontSize:14,fontWeight:700,cursor:"pointer"}}>저장</button>
           </div>
+        )}
+
+        {tab==="class"&&academyOptions&&(
+          <ClassSettingsPanel academyOptions={academyOptions} onUpdateAcademyOptions={onUpdateAcademyOptions}/>
         )}
 
         {tab==="notif"&&(
@@ -6611,6 +6629,8 @@ export default function App(){
     studentCount: students.length,
     plan,
     isMaster,
+    academyOptions,
+    onUpdateAcademyOptions,
   };
 
   const markFeedbacksRead = useCallback((ids) => {
@@ -6926,13 +6946,13 @@ export default function App(){
     );
     if(subPage==="offline_queue")    return <OfflineQueuePage    onBack={()=>setSubPage(null)} online={online} queueLen={queueLen} onGoOnline={goOnline}/>;
     switch(adminTab){
-      case"home":     return <AdminHome students={students} schedules={schedules} notices={notices} feedbacks={feedbacks} onAttendTap={setAttendSt} onNavigate={handleAdminNav} attendanceMap={attendMapDisplay} logoSrc={logoSrc} classTimes={classTimesForAttendance} isNativeApp={isNativeApp} onExitApp={handleExitApp} plan={plan} isMaster={isMaster}/>;
+      case"home":     return <AdminHome students={students} schedules={schedules} notices={notices} feedbacks={feedbacks} onNavigate={handleAdminNav} logoSrc={logoSrc} isNativeApp={isNativeApp} onExitApp={handleExitApp} plan={plan} isMaster={isMaster}/>;
       case"students": return <AdminStudents students={students} onSelect={setSelStudent} onUpdateStudent={onUpdateStudent} onAddStudent={onAddStudent} onDeleteStudent={onDeleteStudent} linkedStudentIds={linkedStudentIds} academyOptions={academyOptionsSafe} onUpdateAcademyOptions={handleUpdateAcademyOptions} attendanceRecords={attendanceRecords} academy={academySafe}/>;
       case"artworks": return <AdminArtworks students={students} artworks={artworks} onUpload={()=>setUploadOpen(true)} onBeforeAfter={()=>setSubPage("beforeafter")} onArtworkFeedback={handleArtworkFeedback} onEditArtwork={setEditArtwork}/>;
       case"attendance": return <AdminAttendanceTab students={students} attendanceRecords={attendanceRecords} academyId={academyId} classTimes={classTimesForAttendance}/>;
       case"chat":     return <AdminDMPage students={students} academyId={academyId} adminId={auth.user?.id}/>;
       case"more":     return <AdminMore students={students} onNavigate={handleAdminNav} academy={academySafe} logoSrc={logoSrc}/>;
-      default:        return <AdminHome students={students} schedules={schedules} notices={notices} feedbacks={feedbacks} onAttendTap={setAttendSt} onNavigate={handleAdminNav} attendanceMap={attendMapDisplay} logoSrc={logoSrc} classTimes={classTimesForAttendance} isNativeApp={isNativeApp} onExitApp={handleExitApp}/>;
+      default:        return <AdminHome students={students} schedules={schedules} notices={notices} feedbacks={feedbacks} onNavigate={handleAdminNav} logoSrc={logoSrc} isNativeApp={isNativeApp} onExitApp={handleExitApp}/>;
     }
   };
 
