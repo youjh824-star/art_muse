@@ -1375,7 +1375,7 @@ const FeedbackMessageRow=({feedback:f,showStudent=false,onOpen,onEdit,onDelete,e
 };
 
 // ─── TABS ──────────────────────────────────────────────────
-const ADMIN_TABS =[{id:"home",icon:"⌂",label:"홈"},{id:"students",icon:"◉",label:"학생"},{id:"artworks",icon:"◈",label:"작품"},{id:"chat",icon:"💬",label:"채팅"},{id:"attendance",icon:"✅",label:"출석"},{id:"more",icon:"⋯",label:"더보기"}];
+const ADMIN_TABS =[{id:"home",icon:"⌂",label:"홈"},{id:"attendance",icon:"✅",label:"출석"},{id:"students",icon:"◉",label:"학생"},{id:"artworks",icon:"◈",label:"작품"},{id:"chat",icon:"💬",label:"채팅"},{id:"more",icon:"⋯",label:"더보기"}];
 const PARENT_TABS=[{id:"phome",icon:"🏠",label:"홈"},{id:"partworks",icon:"🖼",label:"작품"},{id:"pfeedback",icon:"💬",label:"피드백"},{id:"pschedule",icon:"📅",label:"일정"},{id:"pnotice",icon:"📢",label:"공지"},{id:"pchat",icon:"📨",label:"채팅"},{id:"psettings",icon:"⚙️",label:"설정"}];
 
 // ══════════════════════════════════════════════════════════════

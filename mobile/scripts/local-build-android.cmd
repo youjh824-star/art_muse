@@ -52,6 +52,13 @@ if errorlevel 1 (
   exit /b 1
 )
 
+rem Always copy web bundle into android assets (even when skipping prebuild)
+set "WEB_SRC=%~dp0\..\embedded-web-%VARIANT%"
+set "WEB_DST=%~dp0\..\android\app\src\main\assets\web"
+if exist "%WEB_DST%" rd /s /q "%WEB_DST%"
+xcopy /E /I /Q "%WEB_SRC%" "%WEB_DST%" >nul
+echo [1b/4] Web assets copied to android/app/src/main/assets/web
+
 set "USE_EMBEDDED_WEB=1"
 set "APP_VARIANT=%VARIANT%"
 set "EXPO_NO_METRO_LAZY=1"
