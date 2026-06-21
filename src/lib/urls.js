@@ -6,9 +6,9 @@ export const APP_URLS = {
     web: "https://admin.artmuse.kr",
   },
   parent: {
-    ios: "https://youjh824-star.github.io/art_muse/",
-    android: "https://youjh824-star.github.io/art_muse/",
-    web: "https://youjh824-star.github.io/art_muse/",
+    ios: "http://artlogapp.com/",
+    android: "http://artlogapp.com/",
+    web: "http://artlogapp.com/",
   },
 };
 
