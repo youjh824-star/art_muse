@@ -488,7 +488,7 @@
         📥 APK 다운로드
       </a>
       <div class="dl-note">Android 전용 · 출처 불명 앱 허용 후 설치</div>
-      <div class="dl-version">v1.0.0</div>
+      <div class="dl-version">업데이트 날짜: <span class="dl-version-date">v1.0.0</span></div>
     </div>
     <div class="dl-card">
       <div style="width:80px;height:80px;border-radius:20px;background:linear-gradient(135deg,#7A9E7E,#5a8060);display:flex;align-items:center;justify-content:center;font-size:40px;margin:0 auto 16px;box-shadow:0 4px 16px rgba(0,0,0,0.12);">👨‍👩‍👧</div>
@@ -498,7 +498,7 @@
         📥 APK 다운로드
       </a>
       <div class="dl-note">Android 전용 · 출처 불명 앱 허용 후 설치</div>
-      <div class="dl-version">v1.0.0</div>
+      <div class="dl-version">업데이트 날짜: <span class="dl-version-date">v1.0.0</span></div>
     </div>
   </div>
 
@@ -543,7 +543,7 @@
       const ver = d.getFullYear() + '.' +
         String(d.getMonth() + 1).padStart(2, '0') + '.' +
         String(d.getDate()).padStart(2, '0');
-      document.querySelectorAll('.dl-version').forEach(el => el.textContent = ver);
+      document.querySelectorAll('.dl-version-date').forEach(el => el.textContent = ver);
     })
     .catch(() => {});
 </script>
