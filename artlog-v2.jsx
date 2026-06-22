@@ -1381,13 +1381,11 @@ const AdminHome=({students,schedules,notices,feedbacks,onNavigate,logoSrc,isNati
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"16px 0 18px"}}>
         <div>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-            <div style={{fontSize:11,color:C.warm}}>{todayLabel} · {nowLabel}</div>
             <PlanBadge plan={plan} isMaster={isMaster}/>
             {isNativeApp&&onExitApp&&(
               <button onClick={onExitApp} style={{padding:"2px 8px",borderRadius:12,background:"rgba(193,127,91,0.12)",border:"none",fontSize:10,fontWeight:700,cursor:"pointer",color:C.warm,lineHeight:1.4}}>✕ 종료</button>
             )}
           </div>
-          <Logo w={90} src={logoSrc}/>
         </div>
         <div style={{display:"flex",gap:8}}>
           <div onClick={()=>onNavigate("notice",{keepTab:true})} style={{width:38,height:38,borderRadius:19,background:C.beige,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,cursor:"pointer",position:"relative"}}>
@@ -4077,9 +4075,6 @@ const AdminMore=({students,onNavigate,academy,logoSrc})=>(
     <div style={{fontSize:18,fontWeight:800,color:C.charcoal,padding:"16px 0"}}>더보기</div>
     <Card style={{marginBottom:20,padding:0,overflow:"hidden",cursor:"pointer"}} onClick={()=>onNavigate("settings")}>
       <div style={{background:`linear-gradient(135deg,${C.sand},${C.beige})`,padding:"20px 16px",display:"flex",alignItems:"center",gap:14}}>
-        <div style={{width:60,height:60,borderRadius:14,background:"white",boxShadow:"0 2px 12px rgba(61,53,48,0.12)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}>
-          <img src={logoSrc} alt={academy.name} style={{width:56,height:"auto",objectFit:"contain"}}/>
-        </div>
         <div style={{flex:1}}>
           <div style={{fontSize:16,fontWeight:800,color:C.charcoal}}>{academy.name}</div>
           <div style={{fontSize:12,color:C.warm,marginTop:2}}>{academy.tagline}</div>
@@ -4097,7 +4092,7 @@ const AdminMore=({students,onNavigate,academy,logoSrc})=>(
         {icon:"📈",label:"성장 비교",    sub:"Before/After 슬라이더", page:"beforeafter"},
         {icon:"👨‍👩‍👧",label:"학부모 계정",  sub:"초대·연결 관리",    page:"parent_accounts"},
         {icon:"💬",label:"학부모 피드백",sub:"피드백 발송 이력",  page:"feedback_history"},
-        {icon:"🏫",label:"학원 정보",    sub:"학원명·연락처·로고", page:"settings"},
+        {icon:"🏫",label:"학원 정보",    sub:"학원명·연락처", page:"settings"},
         {icon:"🔔",label:"알림 설정",   sub:"앱 푸시 알림",      page:"settings_notif"},
         {icon:"👤",label:"계정 설정",   sub:"프로필·비밀번호",   page:"settings_account"},
       ].map((item,i,arr)=>(
@@ -4136,7 +4131,6 @@ const ParentAppHeader = ({
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <Logo w={72} src={logoSrc} />
           {linkedChildren.length > 0 && (
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
               {linkedChildren.map((child) => {
@@ -4699,6 +4693,8 @@ const ParentInviteLogin = ({ onLogin, onBack, onVerifyInvite, logoSrc, isNativeA
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
   const [studentName, setStudentName] = useState("");
+  const [agreeTerms, setAgreeTerms] = useState(false);
+  const [agreeAge, setAgreeAge] = useState(false);
 
   const handleLogin = async () => {
     if (isSignUp && code.length < 9) {
@@ -4707,6 +4703,14 @@ const ParentInviteLogin = ({ onLogin, onBack, onVerifyInvite, logoSrc, isNativeA
     }
     if (!email.trim() || !password.trim()) {
       setError("이메일과 비밀번호를 입력해 주세요.");
+      return;
+    }
+    if (isSignUp && !agreeTerms) {
+      setError("이용약관에 동의해 주세요.");
+      return;
+    }
+    if (isSignUp && !agreeAge) {
+      setError("만 14세 이상인 경우에만 가입할 수 있습니다.");
       return;
     }
     setLoading(true);
@@ -4774,11 +4778,28 @@ const ParentInviteLogin = ({ onLogin, onBack, onVerifyInvite, logoSrc, isNativeA
             </div>
             <div style={{display:"flex",gap:8,marginBottom:16}}>
               <button onClick={()=>{ setIsSignUp(true); setError(""); }} style={{flex:1,padding:10,borderRadius:10,border:"none",background:isSignUp?C.terra:C.beige,color:isSignUp?"white":C.warm,fontSize:12,fontWeight:700,cursor:"pointer"}}>회원가입</button>
-              <button onClick={()=>{ setIsSignUp(false); setCode(""); setError(""); }} style={{flex:1,padding:10,borderRadius:10,border:"none",background:!isSignUp?C.terra:C.beige,color:!isSignUp?"white":C.warm,fontSize:12,fontWeight:700,cursor:"pointer"}}>로그인</button>
+              <button onClick={()=>{ setIsSignUp(false); setCode(""); setError(""); setAgreeTerms(false); setAgreeAge(false); }} style={{flex:1,padding:10,borderRadius:10,border:"none",background:!isSignUp?C.terra:C.beige,color:!isSignUp?"white":C.warm,fontSize:12,fontWeight:700,cursor:"pointer"}}>로그인</button>
             </div>
+            {isSignUp&&(
+              <div style={{marginBottom:14,padding:"14px",background:C.cream,borderRadius:12,border:`1px solid ${C.beige}`}}>
+                <label style={{display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer",marginBottom:10}}>
+                  <input type="checkbox" checked={agreeTerms} onChange={e=>setAgreeTerms(e.target.checked)} style={{marginTop:2,accentColor:C.terra,width:16,height:16,flexShrink:0}}/>
+                  <span style={{fontSize:13,color:C.charcoal,lineHeight:1.5}}>
+                    <span style={{color:C.terra,fontWeight:700}}>(필수) </span>
+                    <a href="https://artlogapp.com/terms.html" target="_blank" rel="noreferrer" style={{color:C.terra,fontWeight:700,textDecoration:"underline"}}>이용약관</a>에 동의합니다.
+                  </span>
+                </label>
+                <label style={{display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer"}}>
+                  <input type="checkbox" checked={agreeAge} onChange={e=>setAgreeAge(e.target.checked)} style={{marginTop:2,accentColor:C.terra,width:16,height:16,flexShrink:0}}/>
+                  <span style={{fontSize:13,color:C.charcoal,lineHeight:1.5}}>
+                    <span style={{color:C.terra,fontWeight:700}}>(필수) </span>본인은 만 14세 이상입니다.
+                  </span>
+                </label>
+              </div>
+            )}
             {error && <div style={{fontSize:12,color:C.red,marginBottom:12,textAlign:"center"}}>{error}</div>}
-            <button onClick={handleLogin} disabled={loading || (isSignUp && code.length < 9)}
-              style={{width:"100%",padding:"15px",borderRadius:12,background:loading || (isSignUp && code.length < 9) ? C.light : C.terra,color:"white",border:"none",fontSize:15,fontWeight:700,cursor:loading || (isSignUp && code.length < 9) ? "not-allowed" : "pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+            <button onClick={handleLogin} disabled={loading||(isSignUp&&(code.length<9||!agreeTerms||!agreeAge))}
+              style={{width:"100%",padding:"15px",borderRadius:12,background:loading||(isSignUp&&(code.length<9||!agreeTerms||!agreeAge))?C.light:C.terra,color:"white",border:"none",fontSize:15,fontWeight:700,cursor:loading||(isSignUp&&(code.length<9||!agreeTerms||!agreeAge))?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
               {loading ? <><span style={{display:"inline-block",animation:"spin 1s linear infinite"}}>⟳</span>처리 중...</> : isSignUp ? "가입하고 연결" : "로그인"}
             </button>
           </div>
@@ -4846,10 +4867,20 @@ const LoginScreen=({role,onLogin,onBack,onVerifyInvite,onAdminSignIn,onAdminSign
   const[done,setDone]=useState(false);
   const[error,setError]=useState("");
   const[isSignUp,setIsSignUp]=useState(false);
+  const[agreeTerms,setAgreeTerms]=useState(false);
+  const[agreeAge,setAgreeAge]=useState(false);
 
   const handleLogin=async()=>{
     if(!email.trim()||!pw.trim()){
       showAlert("이메일과 비밀번호를 입력해 주세요.");
+      return;
+    }
+    if(isSignUp&&!agreeTerms){
+      showAlert("이용약관에 동의해 주세요.");
+      return;
+    }
+    if(isSignUp&&!agreeAge){
+      showAlert("만 14세 이상인 경우에만 가입할 수 있습니다.");
       return;
     }
     setLoading(true);
@@ -4905,15 +4936,32 @@ const LoginScreen=({role,onLogin,onBack,onVerifyInvite,onAdminSignIn,onAdminSign
                 style={{width:"100%",padding:"12px 14px",border:`1px solid ${C.light}`,borderRadius:10,fontSize:14,outline:"none",background:C.white,color:C.charcoal}}/>
             </div>
 
-            <button onClick={handleLogin} disabled={loading}
-              style={{width:"100%",padding:"15px",borderRadius:12,background:loading?C.light:C.terra,color:"white",border:"none",fontSize:15,fontWeight:700,cursor:loading?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+            {isSignUp&&(
+              <div style={{marginBottom:16,padding:"14px",background:C.cream,borderRadius:12,border:`1px solid ${C.beige}`}}>
+                <label style={{display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer",marginBottom:10}}>
+                  <input type="checkbox" checked={agreeTerms} onChange={e=>setAgreeTerms(e.target.checked)} style={{marginTop:2,accentColor:C.terra,width:16,height:16,flexShrink:0}}/>
+                  <span style={{fontSize:13,color:C.charcoal,lineHeight:1.5}}>
+                    <span style={{color:C.terra,fontWeight:700}}>(필수) </span>
+                    <a href="https://artlogapp.com/terms.html" target="_blank" rel="noreferrer" style={{color:C.terra,fontWeight:700,textDecoration:"underline"}}>이용약관</a>에 동의합니다.
+                  </span>
+                </label>
+                <label style={{display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer"}}>
+                  <input type="checkbox" checked={agreeAge} onChange={e=>setAgreeAge(e.target.checked)} style={{marginTop:2,accentColor:C.terra,width:16,height:16,flexShrink:0}}/>
+                  <span style={{fontSize:13,color:C.charcoal,lineHeight:1.5}}>
+                    <span style={{color:C.terra,fontWeight:700}}>(필수) </span>본인은 만 14세 이상입니다.
+                  </span>
+                </label>
+              </div>
+            )}
+            <button onClick={handleLogin} disabled={loading||(isSignUp&&(!agreeTerms||!agreeAge))}
+              style={{width:"100%",padding:"15px",borderRadius:12,background:loading||(isSignUp&&(!agreeTerms||!agreeAge))?C.light:C.terra,color:"white",border:"none",fontSize:15,fontWeight:700,cursor:loading||(isSignUp&&(!agreeTerms||!agreeAge))?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
               {loading?<><span style={{display:"inline-block",animation:"spin 1s linear infinite"}}>⟳</span>로그인 중...</>:isSignUp?"회원가입":"로그인"}
             </button>
             {error && <div style={{fontSize:12,color:C.red,marginTop:10,textAlign:"center"}}>{error}</div>}
 
             <div style={{textAlign:"center",marginTop:14,fontSize:12,color:C.warm}}>
               {isSignUp ? "이미 계정이 있으신가요? " : "계정이 없으신가요? "}
-              <span onClick={()=>{setIsSignUp(!isSignUp);setError("");}} style={{color:C.terra,fontWeight:600,cursor:"pointer"}}>
+              <span onClick={()=>{setIsSignUp(!isSignUp);setError("");setAgreeTerms(false);setAgreeAge(false);}} style={{color:C.terra,fontWeight:600,cursor:"pointer"}}>
                 {isSignUp ? "로그인" : "회원가입"}
               </span>
             </div>
@@ -5081,7 +5129,7 @@ const SettingsPage=({onBack,initTab="academy",academy,onSaveAcademy,onNavigate,o
 
   const handleSave=async()=>{
     try{
-      await onSaveAcademy({name:academyName,tagline,phone,addr,email,bankName,bankAccount,logoUrl:logoPreview});
+      await onSaveAcademy({name:academyName,tagline,phone,addr,email,bankName,bankAccount});
       flashSaved();
     }catch{ /* alert in onSaveAcademy */ }
   };
@@ -5198,19 +5246,6 @@ const SettingsPage=({onBack,initTab="academy",academy,onSaveAcademy,onNavigate,o
       <div style={{padding:16}}>
         {tab==="academy"&&(
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
-            <Card style={{display:"flex",alignItems:"center",gap:14,padding:"14px 16px"}}>
-              <div style={{width:56,height:56,borderRadius:12,background:C.beige,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}>
-                <img src={resolveLogoUrl(logoPreview)} alt="로고" style={{width:52,height:"auto",objectFit:"contain"}}/>
-              </div>
-              <div style={{flex:1}}>
-                <div style={{fontSize:13,fontWeight:700,color:C.charcoal}}>학원 로고</div>
-                <div style={{fontSize:11,color:C.warm,marginTop:2}}>PNG / JPG · 권장 500×500 · 최대 2MB</div>
-                {logoMsg&&<div style={{fontSize:11,color:C.sage,marginTop:4,fontWeight:600}}>✓ {logoMsg}</div>}
-              </div>
-              <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp" style={{display:"none"}} onChange={handleLogoPick}/>
-              <button onClick={()=>logoInputRef.current?.click()} style={{padding:"6px 12px",borderRadius:20,background:C.beige,border:"none",fontSize:11,fontWeight:600,cursor:"pointer",color:C.terra}}>변경</button>
-            </Card>
-
             <Card style={{padding:0}}>
               {[
                 {l:"학원명",v:academyName,set:setAcademyName},
@@ -5314,19 +5349,6 @@ const SettingsPage=({onBack,initTab="academy",academy,onSaveAcademy,onNavigate,o
           </div>
         )}
       </div>
-
-      <BottomSheet open={!!logoCropSrc} onClose={()=>setLogoCropSrc(null)} title="학원 로고 자르기">
-        {logoCropSrc&&(
-          <ImageCropEditor
-            src={logoCropSrc}
-            title="로고 영역 맞추기"
-            fixedAspect={1}
-            onApply={applyLogo}
-            onSkip={()=>applyLogo(logoCropSrc)}
-            onCancel={()=>setLogoCropSrc(null)}
-          />
-        )}
-      </BottomSheet>
 
       <BottomSheet open={showPwModal} onClose={()=>setShowPwModal(false)} title="비밀번호 변경">
         {[{k:"current",l:"현재 비밀번호",ph:"현재 비밀번호"},{k:"next",l:"새 비밀번호",ph:"6자 이상"},{k:"confirm",l:"새 비밀번호 확인",ph:"다시 입력"}].map(f=>(
