@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>개인정보처리방침 — 아트로그</title>
+  <meta name="description" content="아트로그 앱 개인정보처리방침"/>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎨</text></svg>"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --terra:   #C17F5B;
+      --terra-d: #9B5F3F;
+      --green:   #7A9E7E;
+      --cream:   #FBF7F2;
+      --beige:   #EDE4D8;
+      --warm:    #A08070;
+      --charcoal:#2C2420;
+      --white:   #FFFFFF;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+      background: var(--white);
+      color: var(--charcoal);
+      line-height: 1.8;
+    }
+
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 5%; height: 64px;
+      background: rgba(255,255,255,0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--beige);
+    }
+    .nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .nav-logo span { font-size: 18px; font-weight: 800; color: var(--terra-d); letter-spacing: -0.5px; }
+    .nav-back {
+      background: var(--cream); color: var(--terra-d); border: 1px solid var(--beige);
+      border-radius: 20px; padding: 8px 20px; font-size: 14px; font-weight: 600;
+      text-decoration: none; transition: background .2s;
+    }
+    .nav-back:hover { background: var(--beige); }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 100px 24px 80px;
+    }
+
+    .page-header {
+      margin-bottom: 48px;
+      padding-bottom: 24px;
+      border-bottom: 2px solid var(--beige);
+    }
+    .page-header h1 {
+      font-size: 32px;
+      font-weight: 900;
+      color: var(--charcoal);
+      letter-spacing: -1px;
+      margin-bottom: 8px;
+    }
+    .page-header .effective-date {
+      font-size: 14px;
+      color: var(--warm);
+    }
+    .page-header .effective-date strong {
+      color: var(--terra-d);
+    }
+
+    .toc {
+      background: var(--cream);
+      border-radius: 16px;
+      padding: 24px 28px;
+      margin-bottom: 48px;
+      border: 1px solid var(--beige);
+    }
+    .toc-title {
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--warm);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .toc ol {
+      padding-left: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .toc li a {
+      font-size: 14px;
+      color: var(--terra-d);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .toc li a:hover { text-decoration: underline; }
+
+    .section {
+      margin-bottom: 48px;
+    }
+    .section h2 {
+      font-size: 20px;
+      font-weight: 900;
+      color: var(--charcoal);
+      letter-spacing: -0.5px;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--beige);
+    }
+    .section h2 .num {
+      color: var(--terra);
+      margin-right: 6px;
+    }
+    .section p {
+      font-size: 15px;
+      color: #3a3030;
+      margin-bottom: 12px;
+      line-height: 1.9;
+    }
+    .section ul, .section ol {
+      padding-left: 20px;
+      margin-bottom: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .section li {
+      font-size: 15px;
+      color: #3a3030;
+      line-height: 1.8;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+    th {
+      background: var(--cream);
+      color: var(--charcoal);
+      font-weight: 700;
+      padding: 10px 14px;
+      border: 1px solid var(--beige);
+      text-align: left;
+    }
+    td {
+      padding: 10px 14px;
+      border: 1px solid var(--beige);
+      color: #3a3030;
+      vertical-align: top;
+    }
+    tr:nth-child(even) td { background: #fdfbf9; }
+
+    .highlight-box {
+      background: var(--cream);
+      border-left: 4px solid var(--terra);
+      border-radius: 0 12px 12px 0;
+      padding: 16px 20px;
+      margin-bottom: 16px;
+    }
+    .highlight-box p { margin-bottom: 0; }
+
+    .contact-box {
+      background: linear-gradient(135deg, var(--terra) 0%, var(--terra-d) 100%);
+      border-radius: 16px;
+      padding: 28px 32px;
+      color: white;
+    }
+    .contact-box h3 {
+      font-size: 16px;
+      font-weight: 800;
+      margin-bottom: 12px;
+    }
+    .contact-box p {
+      font-size: 14px;
+      color: rgba(255,255,255,0.9);
+      margin-bottom: 6px;
+      line-height: 1.7;
+    }
+    .contact-box a {
+      color: rgba(255,255,255,0.9);
+    }
+
+    footer {
+      background: #1a1210;
+      padding: 32px 5%;
+      text-align: center;
+      color: rgba(255,255,255,0.3);
+      font-size: 13px;
+    }
+    footer a { color: rgba(255,255,255,0.4); text-decoration: none; }
+    footer a:hover { color: rgba(255,255,255,0.7); }
+
+    @media (max-width: 680px) {
+      .container { padding: 88px 16px 60px; }
+      .page-header h1 { font-size: 24px; }
+      table { font-size: 13px; }
+      th, td { padding: 8px 10px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="/">
+    <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#C17F5B,#9B5F3F);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🎨</div>
+    <span>아트로그</span>
+  </a>
+  <a class="nav-back" href="/">← 홈으로</a>
+</nav>
+
+<div class="container">
+
+  <div class="page-header">
+    <h1>개인정보처리방침</h1>
+    <p class="effective-date">시행일: <strong>2026년 6월 22일</strong> &nbsp;|&nbsp; 버전: 1.0</p>
+  </div>
+
+  <div class="toc">
+    <div class="toc-title">목차</div>
+    <ol>
+      <li><a href="#s1">개인정보의 처리 목적</a></li>
+      <li><a href="#s2">처리하는 개인정보의 항목 및 수집 방법</a></li>
+      <li><a href="#s3">개인정보의 처리 및 보유 기간</a></li>
+      <li><a href="#s4">개인정보의 제3자 제공</a></li>
+      <li><a href="#s5">개인정보 처리의 위탁</a></li>
+      <li><a href="#s6">정보주체의 권리·의무 및 행사 방법</a></li>
+      <li><a href="#s7">개인정보의 파기</a></li>
+      <li><a href="#s8">개인정보의 안전성 확보 조치</a></li>
+      <li><a href="#s9">아동(만 14세 미만)의 개인정보 보호</a></li>
+      <li><a href="#s10">개인정보 자동 수집 장치의 설치·운영 및 거부</a></li>
+      <li><a href="#s11">개인정보 보호책임자</a></li>
+      <li><a href="#s12">권익침해 구제 방법</a></li>
+      <li><a href="#s13">개인정보처리방침의 변경</a></li>
+    </ol>
+  </div>
+
+  <div class="highlight-box">
+    <p>아트로그(이하 "서비스")는 미술 학원 원장 및 학부모를 위한 학원 관리 앱입니다. 서비스 제공자(이하 "회사")는 「개인정보 보호법」 제30조에 따라 정보주체의 개인정보를 보호하고 이와 관련한 고충을 신속하고 원활하게 처리할 수 있도록 다음과 같이 개인정보처리방침을 수립·공개합니다.</p>
+  </div>
+
+  <!-- 1 -->
+  <div class="section" id="s1">
+    <h2><span class="num">제1조</span> 개인정보의 처리 목적</h2>
+    <p>회사는 다음의 목적을 위하여 개인정보를 처리합니다. 처리하는 개인정보는 다음의 목적 이외의 용도로는 이용되지 않으며, 이용 목적이 변경되는 경우에는 「개인정보 보호법」 제18조에 따라 별도의 동의를 받는 등 필요한 조치를 이행합니다.</p>
+    <ul>
+      <li><strong>회원 가입 및 관리:</strong> 회원 식별, 서비스 이용 자격 확인, 학원·학부모 계정 연결</li>
+      <li><strong>서비스 제공:</strong> 학생 출결 기록 및 알림, 작품 포트폴리오 관리, 학부모-원장 1:1 채팅, 공지사항 발송</li>
+      <li><strong>푸시 알림 발송:</strong> 입·하원 알림, 수업 피드백 알림, 공지 알림</li>
+      <li><strong>학원 운영 관리:</strong> 수강료 및 보강 일정 관리, 학생 등록 및 정보 관리</li>
+      <li><strong>서비스 개선 및 오류 대응:</strong> 서비스 품질 개선, 오류·장애 파악 및 해결</li>
+    </ul>
+  </div>
+
+  <!-- 2 -->
+  <div class="section" id="s2">
+    <h2><span class="num">제2조</span> 처리하는 개인정보의 항목 및 수집 방법</h2>
+    <p>회사는 서비스 제공을 위해 아래와 같은 개인정보를 수집합니다.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>구분</th>
+          <th>수집 항목</th>
+          <th>수집 목적</th>
+          <th>필수/선택</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>원장(회원가입)</td>
+          <td>이메일 주소, 비밀번호(암호화 저장), 학원명, 연락처</td>
+          <td>계정 생성 및 서비스 이용</td>
+          <td>필수</td>
+        </tr>
+        <tr>
+          <td>학부모(초대 가입)</td>
+          <td>이메일 주소, 이름, 연락처, 자녀 이름</td>
+          <td>학원 연결 및 알림 수신</td>
+          <td>필수</td>
+        </tr>
+        <tr>
+          <td>학생 정보</td>
+          <td>이름, 생년월일, 연락처(보호자), 수강 과목, 출결 기록</td>
+          <td>출결 관리 및 학부모 알림</td>
+          <td>필수</td>
+        </tr>
+        <tr>
+          <td>작품 정보</td>
+          <td>작품 사진, 수업 피드백 내용, 촬영 일시</td>
+          <td>포트폴리오 제공</td>
+          <td>선택</td>
+        </tr>
+        <tr>
+          <td>기기 정보</td>
+          <td>푸시 알림 토큰(FCM Token), 기기 OS 정보</td>
+          <td>푸시 알림 발송</td>
+          <td>필수(알림 허용 시)</td>
+        </tr>
+        <tr>
+          <td>서비스 이용 기록</td>
+          <td>앱 접속 일시, 서비스 이용 이력</td>
+          <td>서비스 품질 개선</td>
+          <td>자동 수집</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p><strong>수집 방법:</strong> 앱 내 직접 입력, 초대 링크를 통한 가입, 서비스 이용 과정에서 자동 생성</p>
+  </div>
+
+  <!-- 3 -->
+  <div class="section" id="s3">
+    <h2><span class="num">제3조</span> 개인정보의 처리 및 보유 기간</h2>
+    <p>회사는 법령에 따른 개인정보 보유·이용 기간 또는 정보주체로부터 개인정보를 수집 시 동의받은 개인정보 보유·이용 기간 내에서 개인정보를 처리·보유합니다.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>항목</th>
+          <th>보유 기간</th>
+          <th>근거</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>회원 정보(계정)</td>
+          <td>회원 탈퇴 시까지</td>
+          <td>서비스 이용 계약</td>
+        </tr>
+        <tr>
+          <td>학생 및 출결 기록</td>
+          <td>원장이 삭제하거나 학원 계정 탈퇴 시까지</td>
+          <td>서비스 제공 목적</td>
+        </tr>
+        <tr>
+          <td>작품 사진 및 피드백</td>
+          <td>원장이 삭제하거나 학원 계정 탈퇴 시까지</td>
+          <td>서비스 제공 목적</td>
+        </tr>
+        <tr>
+          <td>채팅 메시지</td>
+          <td>회원 탈퇴 시까지(상대방 계정 유지 시 보존 가능)</td>
+          <td>서비스 제공 목적</td>
+        </tr>
+        <tr>
+          <td>서비스 이용 기록</td>
+          <td>3개월</td>
+          <td>서비스 오류 대응</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>단, 관계 법령에 따라 아래 기간 동안 보존합니다.</p>
+    <ul>
+      <li>소비자 불만 또는 분쟁 처리에 관한 기록: 3년 (전자상거래법)</li>
+      <li>접속 로그: 3개월 (통신비밀보호법)</li>
+    </ul>
+  </div>
+
+  <!-- 4 -->
+  <div class="section" id="s4">
+    <h2><span class="num">제4조</span> 개인정보의 제3자 제공</h2>
+    <p>회사는 정보주체의 개인정보를 제1조에서 명시한 목적 범위 내에서만 처리하며, 원칙적으로 정보주체의 동의 없이 제3자에게 제공하지 않습니다.</p>
+    <p>다만, 다음의 경우에는 예외로 합니다.</p>
+    <ul>
+      <li>정보주체가 사전에 동의한 경우</li>
+      <li>법령의 규정에 의거하거나, 수사 목적으로 법령에 정해진 절차와 방법에 따라 수사기관의 요구가 있는 경우</li>
+    </ul>
+    <p>현재 회사는 개인정보를 제3자에게 제공하지 않습니다.</p>
+  </div>
+
+  <!-- 5 -->
+  <div class="section" id="s5">
+    <h2><span class="num">제5조</span> 개인정보 처리의 위탁</h2>
+    <p>회사는 원활한 서비스 제공을 위해 개인정보 처리 업무를 아래와 같이 위탁하고 있습니다.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>수탁업체</th>
+          <th>위탁 업무</th>
+          <th>보유 및 이용 기간</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Supabase Inc.</td>
+          <td>데이터베이스 및 인증 서비스 운영, 파일 스토리지</td>
+          <td>서비스 이용 기간</td>
+        </tr>
+        <tr>
+          <td>Google (Firebase)</td>
+          <td>푸시 알림 발송(FCM)</td>
+          <td>서비스 이용 기간</td>
+        </tr>
+        <tr>
+          <td>OpenAI</td>
+          <td>AI 피드백 문구 생성(원장 앱 기능, 작품 피드백 보조)</td>
+          <td>요청 처리 후 즉시 삭제</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>회사는 위탁계약 체결 시 「개인정보 보호법」 제26조에 따라 위탁업무 수행 목적 외 개인정보 처리 금지, 기술적·관리적 보호조치, 재위탁 제한 등을 규정하고 이를 관리·감독합니다.</p>
+  </div>
+
+  <!-- 6 -->
+  <div class="section" id="s6">
+    <h2><span class="num">제6조</span> 정보주체의 권리·의무 및 행사 방법</h2>
+    <p>정보주체는 회사에 대해 언제든지 다음 각 호의 개인정보 보호 관련 권리를 행사할 수 있습니다.</p>
+    <ul>
+      <li>개인정보 열람 요구</li>
+      <li>오류 등이 있을 경우 정정 요구</li>
+      <li>삭제 요구</li>
+      <li>처리 정지 요구</li>
+    </ul>
+    <p>위 권리 행사는 아래 개인정보 보호책임자에게 이메일로 요청하실 수 있으며, 회사는 이에 대해 지체 없이(10일 이내) 조치합니다.</p>
+    <p>정보주체는 개인정보의 보호를 위해 아래 의무를 준수해야 합니다.</p>
+    <ul>
+      <li>타인의 개인정보를 침해하거나 허위 정보를 제공하지 않을 의무</li>
+      <li>계정 정보(비밀번호 등)를 타인에게 제공하거나 공유하지 않을 의무</li>
+    </ul>
+  </div>
+
+  <!-- 7 -->
+  <div class="section" id="s7">
+    <h2><span class="num">제7조</span> 개인정보의 파기</h2>
+    <p>회사는 개인정보 보유 기간의 경과, 처리 목적 달성 등 개인정보가 불필요하게 되었을 때에는 지체 없이(5일 이내) 해당 개인정보를 파기합니다.</p>
+    <p><strong>전자적 파일 형태:</strong> 복구 불가능한 방법으로 영구 삭제</p>
+    <p><strong>기타 기록물·인쇄물 등:</strong> 분쇄 또는 소각</p>
+    <p>법령에 따라 보존해야 하는 개인정보는 별도의 데이터베이스(DB)로 분리하여 보관합니다.</p>
+  </div>
+
+  <!-- 8 -->
+  <div class="section" id="s8">
+    <h2><span class="num">제8조</span> 개인정보의 안전성 확보 조치</h2>
+    <p>회사는 「개인정보 보호법」 제29조에 따라 다음과 같이 안전성 확보에 필요한 기술적·관리적·물리적 조치를 하고 있습니다.</p>
+    <ul>
+      <li><strong>관리적 조치:</strong> 개인정보 처리 직원 최소화, 내부 관리계획 수립·시행</li>
+      <li><strong>기술적 조치:</strong> 개인정보 암호화(비밀번호, 중요 데이터), HTTPS/TLS 통신 암호화, 접근 권한 관리(Row Level Security)</li>
+      <li><strong>물리적 조치:</strong> 서버 데이터는 클라우드(Supabase) 보안 정책에 따라 보호</li>
+      <li><strong>해킹 대비:</strong> 보안 프로그램 설치·업데이트, 외부로부터의 무단 접근 차단</li>
+    </ul>
+  </div>
+
+  <!-- 9 -->
+  <div class="section" id="s9">
+    <h2><span class="num">제9조</span> 아동(만 14세 미만)의 개인정보 보호</h2>
+    <p>아트로그 서비스는 학원 원장(성인) 및 학부모(성인)를 가입 대상으로 하며, 만 14세 미만 아동은 직접 회원으로 가입할 수 없습니다.</p>
+    <p>학생(아동) 정보는 학원 원장이 서비스 운영 목적으로 입력하며, 이는 학원-학부모 간 정당한 계약 관계를 전제로 합니다. 아동의 사진(작품) 등 민감 정보는 학원 원장의 책임 하에 관리됩니다.</p>
+    <p>만 14세 미만 아동의 보호자는 언제든지 해당 아동에 관한 정보의 열람·정정·삭제를 요청할 수 있습니다.</p>
+  </div>
+
+  <!-- 10 -->
+  <div class="section" id="s10">
+    <h2><span class="num">제10조</span> 개인정보 자동 수집 장치의 설치·운영 및 거부</h2>
+    <p>회사는 앱 서비스 특성상 별도의 쿠키(Cookie)를 사용하지 않습니다. 다만, 서비스 품질 개선을 위해 앱 내 이용 기록이 자동으로 수집될 수 있습니다.</p>
+    <p><strong>푸시 알림:</strong> 기기의 알림 권한 설정에서 알림을 언제든지 허용 또는 차단할 수 있으며, 차단 시 입·하원 알림 등 일부 서비스가 제한될 수 있습니다.</p>
+    <p><strong>카메라·사진 접근:</strong> 기기 설정에서 권한을 언제든지 철회할 수 있으며, 철회 시 작품 촬영 및 업로드 기능이 제한됩니다.</p>
+  </div>
+
+  <!-- 11 -->
+  <div class="section" id="s11">
+    <h2><span class="num">제11조</span> 개인정보 보호책임자</h2>
+    <p>회사는 개인정보 처리에 관한 업무를 총괄해서 책임지고, 정보주체의 개인정보 관련 불만 처리 및 피해 구제 등을 위해 개인정보 보호책임자를 지정하고 있습니다.</p>
+
+    <div class="contact-box">
+      <h3>개인정보 보호책임자 및 담당 부서</h3>
+      <p>서비스명: 아트로그 (ArtLog)</p>
+      <p>이메일: <a href="mailto:artlogapp@gmail.com">artlogapp@gmail.com</a></p>
+      <p>응답 시간: 평일 09:00 ~ 18:00 (주말·공휴일 제외, 10일 이내 답변)</p>
+    </div>
+  </div>
+
+  <!-- 12 -->
+  <div class="section" id="s12">
+    <h2><span class="num">제12조</span> 권익침해 구제 방법</h2>
+    <p>정보주체는 개인정보침해로 인한 구제를 받기 위하여 개인정보 분쟁조정위원회, 한국인터넷진흥원 개인정보침해신고센터 등에 분쟁해결이나 상담 등을 신청할 수 있습니다.</p>
+    <ul>
+      <li><strong>개인정보 분쟁조정위원회:</strong> (국번없이) 1833-6972 / <a href="https://www.kopico.go.kr" target="_blank">www.kopico.go.kr</a></li>
+      <li><strong>개인정보침해신고센터:</strong> (국번없이) 118 / <a href="https://privacy.kisa.or.kr" target="_blank">privacy.kisa.or.kr</a></li>
+      <li><strong>대검찰청 사이버범죄수사단:</strong> (국번없이) 1301 / <a href="https://www.spo.go.kr" target="_blank">www.spo.go.kr</a></li>
+      <li><strong>경찰청 사이버안전국:</strong> (국번없이) 182 / <a href="https://ecrm.cyber.go.kr" target="_blank">ecrm.cyber.go.kr</a></li>
+    </ul>
+  </div>
+
+  <!-- 13 -->
+  <div class="section" id="s13">
+    <h2><span class="num">제13조</span> 개인정보처리방침의 변경</h2>
+    <p>이 개인정보처리방침은 <strong>2026년 6월 22일</strong>부터 적용됩니다.</p>
+    <p>법령·정책 또는 보안 기술의 변경에 따라 내용의 추가·삭제 및 수정이 있을 경우에는 변경 사항의 시행 7일 전부터 앱 내 공지 또는 본 홈페이지를 통해 고지합니다. 중요한 내용 변경의 경우(수집 항목, 이용 목적, 제3자 제공 등)는 30일 전부터 고지합니다.</p>
+  </div>
+
+</div>
+
+<footer>
+  <p>© 2026 아트로그 · Art Muse. All rights reserved.</p>
+  <p style="margin-top:8px;">
+    <a href="/">홈</a> · <a href="/privacy.html">개인정보처리방침</a>
+  </p>
+</footer>
+
+</body>
+</html>
