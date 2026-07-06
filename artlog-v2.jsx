@@ -6,7 +6,6 @@ import { authErrorMessage, dbErrorMessage } from "./src/lib/authErrors.js";
 import { alertMutationError, catchUserAction, logBackgroundError } from "./src/lib/reportError.js";
 import { requireSupabase } from "./src/lib/supabase.js";
 import { useArtlogAppState, subscribeQueue } from "./src/hooks/useArtlogAppState.js";
-import { useFeedbackReplies, useFeedbackReplyMutation } from "./src/hooks/useFeedbackReplies.js";
 import { useMessages, useMessageMutations, useLatestMessagesByStudent, useUnreadCountByStudent } from "./src/hooks/useMessages.js";
 import { useAttendanceMutations } from "./src/hooks/useAttendance.js";
 import { groupLinkedParentsByAccount, sortFeedbacksRecentFirst } from "./src/lib/mappers.js";
@@ -1382,9 +1381,6 @@ const AdminHome=({students,schedules,notices,feedbacks,onNavigate,logoSrc,isNati
         <div>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
             <PlanBadge plan={plan} isMaster={isMaster}/>
-            {isNativeApp&&onExitApp&&(
-              <button onClick={onExitApp} style={{padding:"2px 8px",borderRadius:12,background:"rgba(193,127,91,0.12)",border:"none",fontSize:10,fontWeight:700,cursor:"pointer",color:C.warm,lineHeight:1.4}}>✕ 종료</button>
-            )}
           </div>
         </div>
         <div style={{display:"flex",gap:8}}>
@@ -4126,9 +4122,6 @@ const ParentAppHeader = ({
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom: 6 }}>
           <div style={{ fontSize: 11, color: C.warm }}>학부모 앱</div>
-          {isNativeApp&&onExitApp&&(
-            <button onClick={onExitApp} style={{padding:"2px 8px",borderRadius:12,background:"rgba(193,127,91,0.12)",border:"none",fontSize:10,fontWeight:700,cursor:"pointer",color:C.warm,lineHeight:1.4}}>✕ 종료</button>
-          )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           {linkedChildren.length > 0 && (
@@ -4398,30 +4391,6 @@ const ChatInput=({onSend,placeholder="메시지를 입력하세요…",disabled}
   );
 };
 
-// ── 피드백 답변 쓰레드 (시트 내부) ──────────────────────────
-const FeedbackThread=({feedback,academyId,userId,userRole})=>{
-  const{data:replies=[],isLoading}=useFeedbackReplies(feedback?.id);
-  const addReply=useFeedbackReplyMutation(academyId);
-  const scrollRef=useRef(null);
-
-  useEffect(()=>{
-    if(scrollRef.current) scrollRef.current.scrollTop=scrollRef.current.scrollHeight;
-  },[replies.length]);
-
-  const handleSend=(content)=>{
-    addReply.mutate({feedbackId:feedback.id,senderId:userId,senderRole:userRole,content});
-  };
-
-  return(
-    <div style={{display:"flex",flexDirection:"column"}}>
-      {/* 원본 피드백 */}
-      <div style={{background:C.cream,borderRadius:12,padding:"12px 16px",marginBottom:16,borderLeft:`3px solid ${C.terra}`}}>
-        <div style={{fontSize:11,color:C.warm,marginBottom:6}}>선생님 · {feedback.date}</div>
-        <div style={{fontSize:13,color:C.charcoal,lineHeight:1.7,whiteSpace:"pre-wrap"}}>{feedback.content}</div>
-      </div>
-    </div>
-  );
-};
 
 // ── 학부모: 피드백 목록 + 답변 ────────────────────────────────
 const ParentFeedback=({student,feedbacks,onMarkRead})=>{
@@ -7038,7 +7007,6 @@ export default function App(){
       case"pmore":     return <>{parentHeader}<ParentMoreTab onTab={setParentTab}/></>;
       case"partworks": return <>{parentHeader}<ParentArtworks key={parentChild.id} student={parentChild} artworks={artworks} academy={academySafe} feedbacks={feedbacks} onUpload={()=>setParentUploadOpen(true)}/></>;
       case"pschedule": return <>{parentHeader}<ParentScheduleCalendar key={parentChild.id} student={parentChild} schedules={schedules} attendanceRecords={attendanceRecords}/></>;
-      case"psettings": return renderParentSettings();
       default:         return <>{parentHeader}<ParentHome key={parentChild.id} student={parentChild} feedbacks={feedbacks} artworks={artworks} notices={parentNotices} attendanceRecords={attendanceRecords} schedules={schedules} onTab={setParentTab}/></>;
     }
   };

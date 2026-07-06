@@ -1,4 +1,4 @@
-import { BackHandler, Platform } from "react-native";
+import { Alert, BackHandler, Platform } from "react-native";
 import { takeArtworkPhoto, pickArtworkFromGallery } from "./media";
 import { notifyAttendance, notifyFeedback, notifyFeedbackReceived, notifyFeeReminder, notifyUnpaidReminder, notifyMakeup, notifyNotice } from "./notifications";
 import { generateParentFeedback } from "./openai";
@@ -90,8 +90,28 @@ export async function handleBridgeMessage(message, postToWeb) {
         result = { ok: true };
         break;
       case BRIDGE_ACTIONS.EXIT_APP:
-        if (Platform.OS === "android") BackHandler.exitApp();
-        result = { ok: true };
+        if (Platform.OS === "android") {
+          result = await new Promise((resolve) => {
+            Alert.alert(
+              "앱 종료",
+              "종료하시겠습니까?",
+              [
+                { text: "취소", style: "cancel", onPress: () => resolve({ ok: false }) },
+                {
+                  text: "종료",
+                  style: "destructive",
+                  onPress: () => {
+                    BackHandler.exitApp();
+                    resolve({ ok: true });
+                  },
+                },
+              ],
+              { cancelable: true, onDismiss: () => resolve({ ok: false }) }
+            );
+          });
+        } else {
+          result = { ok: true };
+        }
         break;
       default:
         throw new Error(`Unknown action: ${action}`);

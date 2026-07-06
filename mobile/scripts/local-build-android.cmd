@@ -125,12 +125,12 @@ set "RELEASE_APK_NAME=app-%VARIANT%.apk"
 set "RELEASE_TAG=latest-release"
 set "REPO=youjh824-star/art_muse"
 set "CURRENT_LABEL="
-set "RELEASE_VERSION=v1.0.0"
+set "RELEASE_VERSION=v1.0.1"
 
 rem Read current asset label and bump patch version (v1.0.x)
 for /f "usebackq delims=" %%V in (`powershell -NoProfile -Command "$j=& '%GH_EXE%' release view %RELEASE_TAG% --repo %REPO% --json assets 2>$null | ConvertFrom-Json; $a=$j.assets | Where-Object { $_.name -eq '%RELEASE_APK_NAME%' } | Select-Object -First 1; if($a){$a.label}"`) do set "CURRENT_LABEL=%%V"
 if defined CURRENT_LABEL (
-  for /f "usebackq delims=" %%V in (`powershell -NoProfile -Command "$label='%CURRENT_LABEL%'; if($label -match 'v1\.0\.(\d+)'){ 'v1.0.' + ([int]$Matches[1] + 1) } else { 'v1.0.0' }"`) do set "RELEASE_VERSION=%%V"
+  for /f "usebackq delims=" %%V in (`powershell -NoProfile -Command "$label='%CURRENT_LABEL%'; if($label -match 'v1\.0\.(\d+)'){ 'v1.0.' + ([int]$Matches[1] + 1) } else { 'v1.0.1' }"`) do set "RELEASE_VERSION=%%V"
 )
 set "RELEASE_ASSET_LABEL=%RELEASE_VERSION%"
 echo [Release] %RELEASE_APK_NAME% label: %RELEASE_ASSET_LABEL%
