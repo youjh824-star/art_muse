@@ -104,7 +104,7 @@ echo   adb install -r "%APK_DEST%"
 echo.
 
 echo [5/4] Uploading APK to GitHub Releases...
-rem GitHub CLI 경로 탐색 (winget 설치 경로 포함)
+rem Locate GitHub CLI (including winget path)
 set "GH_EXE="
 where gh >nul 2>&1 && set "GH_EXE=gh"
 if not defined GH_EXE if exist "C:\Program Files\GitHub CLI\gh.exe" set "GH_EXE=C:\Program Files\GitHub CLI\gh.exe"
@@ -120,21 +120,34 @@ if errorlevel 1 (
   goto :end
 )
 
-rem APK 파일명을 variant별로 고정 (랜딩페이지 링크와 일치)
+rem Keep stable APK asset name per variant (matches landing links)
 set "RELEASE_APK_NAME=app-%VARIANT%.apk"
 set "RELEASE_TAG=latest-release"
 set "REPO=youjh824-star/art_muse"
+set "CURRENT_LABEL="
+set "RELEASE_VERSION=v1.0.0"
 
-rem 기존 latest-release 태그 삭제 후 재생성 (항상 최신 유지)
-"%GH_EXE%" release delete %RELEASE_TAG% --repo %REPO% --yes >nul 2>&1
-git tag -d %RELEASE_TAG% >nul 2>&1
-git push origin :refs/tags/%RELEASE_TAG% >nul 2>&1
+rem Read current asset label and bump patch version (v1.0.x)
+for /f "usebackq delims=" %%V in (`powershell -NoProfile -Command "$j=& '%GH_EXE%' release view %RELEASE_TAG% --repo %REPO% --json assets 2>$null | ConvertFrom-Json; $a=$j.assets | Where-Object { $_.name -eq '%RELEASE_APK_NAME%' } | Select-Object -First 1; if($a){$a.label}"`) do set "CURRENT_LABEL=%%V"
+if defined CURRENT_LABEL (
+  for /f "usebackq delims=" %%V in (`powershell -NoProfile -Command "$label='%CURRENT_LABEL%'; if($label -match 'v1\.0\.(\d+)'){ 'v1.0.' + ([int]$Matches[1] + 1) } else { 'v1.0.0' }"`) do set "RELEASE_VERSION=%%V"
+)
+set "RELEASE_ASSET_LABEL=%RELEASE_VERSION%"
+echo [Release] %RELEASE_APK_NAME% label: %RELEASE_ASSET_LABEL%
 
-"%GH_EXE%" release create %RELEASE_TAG% "%APK_DEST%#%RELEASE_APK_NAME%" ^
-  --repo %REPO% ^
-  --title "최신 버전" ^
-  --notes "자동 업로드 - %VARIANT% APK" ^
-  --latest
+rem 릴리즈가 없으면 생성, 있으면 해당 APK만 덮어쓰기 (다른 variant APK 유지)
+"%GH_EXE%" release view %RELEASE_TAG% --repo %REPO% >nul 2>&1
+if errorlevel 1 (
+  rem 릴리즈 없음 - 새로 생성
+  "%GH_EXE%" release create %RELEASE_TAG% "%APK_DEST%#%RELEASE_ASSET_LABEL%" ^
+    --repo %REPO% ^
+    --title "최신 버전 (%RELEASE_VERSION%)" ^
+    --notes "자동 업로드 - %RELEASE_APK_NAME% %RELEASE_VERSION%" ^
+    --latest
+) else (
+  rem 릴리즈 있음 - 이 variant APK만 업데이트 (다른 APK 유지)
+  "%GH_EXE%" release upload %RELEASE_TAG% "%APK_DEST%#%RELEASE_ASSET_LABEL%" --repo %REPO% --clobber
+)
 
 if errorlevel 1 (
   echo WARNING: GitHub upload failed. APK is saved locally at %APK_DEST%
