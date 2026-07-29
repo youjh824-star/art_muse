@@ -87,6 +87,77 @@ const APP_ROLE = import.meta.env.VITE_APP_ROLE || "";
 const IS_ADMIN_APP = APP_ROLE === "admin";
 const IS_PARENT_APP = APP_ROLE === "parent";
 const IS_SPLIT_APP = IS_ADMIN_APP || IS_PARENT_APP;
+const RELEASE_REPO = "youjh824-star/art_muse";
+const VERSION_REGEX = /v\d+\.\d+\.\d+(?:[-+._a-z0-9]*)?/i;
+
+function extractVersionLabel(...sources) {
+  for (const src of sources) {
+    const text = String(src ?? "");
+    const m = text.match(VERSION_REGEX);
+    if (m?.[0]) return m[0];
+  }
+  return null;
+}
+
+function useAppVersionLabel() {
+  const cachedVersion = (() => {
+    try {
+      return extractVersionLabel(localStorage.getItem("artlog_app_version"));
+    } catch {
+      return null;
+    }
+  })();
+  const [version, setVersion] = useState(
+    () => cachedVersion ?? extractVersionLabel(import.meta.env.VITE_APP_VERSION) ?? "v-"
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const targetApk = IS_ADMIN_APP
+      ? "app-admin.apk"
+      : IS_PARENT_APP
+        ? "app-parent.apk"
+        : null;
+
+    (async () => {
+      try {
+        const res = await fetch(`https://api.github.com/repos/${RELEASE_REPO}/releases/latest`, {
+          headers: { Accept: "application/vnd.github+json" },
+        });
+        if (!res.ok) return;
+        const release = await res.json();
+        const assets = Array.isArray(release?.assets) ? release.assets : [];
+        const targetAsset = targetApk
+          ? assets.find((asset) => asset?.name === targetApk)
+          : null;
+
+        const nextVersion = extractVersionLabel(
+          targetAsset?.label,
+          targetAsset?.name,
+          release?.name,
+          release?.tag_name,
+          release?.body
+        );
+        if (!cancelled && nextVersion) {
+          setVersion(nextVersion);
+          try {
+            localStorage.setItem("artlog_app_version", nextVersion);
+          } catch {
+            // ignore storage errors
+          }
+        }
+      } catch {
+        // 네트워크 실패 시 현재 버전(기본값) 유지
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return version;
+}
 
 function initialAppMode() {
   if (IS_ADMIN_APP) return "login_admin";
@@ -247,10 +318,10 @@ const PortfolioExportBtn = ({ student, artworks, academy, feedbacks = [], style 
   return (
     <div style={{ display: "flex", gap: 8, ...style }}>
       <button onClick={() => handleExport("pdf")} disabled={!!busy || !count} style={btnStyle("pdf")}>
-        {busy === "pdf" ? "PDF 생성 중…" : "📄 PDF 포트폴리오"}
+        {busy === "pdf" ? "PDF 생성 중…" : <><TablerIcon name="fileTypePdf" size={15} color={C.warm}/> PDF 포트폴리오</>}
       </button>
       <button onClick={() => handleExport("docx")} disabled={!!busy || !count} style={btnStyle("docx")}>
-        {busy === "docx" ? "Word 생성 중…" : "📝 Word 포트폴리오"}
+        {busy === "docx" ? "Word 생성 중…" : <><TablerIcon name="fileText" size={15} color={C.warm}/> Word 포트폴리오</>}
       </button>
     </div>
   );
@@ -300,7 +371,7 @@ const AttendanceExportBtn = ({ students, student, attendanceRecords, academy, st
           color: C.charcoal,
         }}
       >
-        {busy ? "Word 생성 중…" : student ? "📝 Word 출석부" : "📝 Word 출석부"}
+        {busy ? "Word 생성 중…" : <><TablerIcon name="fileText" size={14} color={C.charcoal}/> Word 출석부</>}
       </button>
     </div>
   );
@@ -985,12 +1056,12 @@ const StudentAvatar = ({ student, size = 44, fontSize = null, style = {} }) => {
     return (
       <div style={{
         width: size, height: size, borderRadius: size / 2,
-        background: `linear-gradient(135deg,${C.beige},${C.sand})`,
+        background: "#F5EFE4",
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: fs, flexShrink: 0, ...style,
+        flexShrink: 0, ...style,
       }}
       >
-        {student?.art ?? "🎨"}
+        <TablerIcon name="palette" size={Math.round(size * 0.48)} color={C.terra}/>
       </div>
     );
   }
@@ -1330,12 +1401,12 @@ const FeedbackMessageRow=({feedback:f,showStudent=false,onOpen,onEdit,onDelete,e
   return(
     <Card onClick={()=>onOpen?.(f)} style={{padding:"12px 14px",borderLeft:`3px solid ${unread?C.terra:C.sage}`,cursor:onOpen?"pointer":"default"}}>
       <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
-        <div style={{width:28,height:28,borderRadius:8,background:unread?C.terraL:C.beige,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0,color:unread?C.terra:C.warm}}>☰</div>
+        <div style={{width:28,height:28,borderRadius:8,background:unread?C.terraL:C.beige,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><TablerIcon name="palette" size={15} color={unread?C.terra:C.warm}/></div>
         <div style={{flex:1,minWidth:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:4}}>
             <div style={{fontSize:13,fontWeight:700,color:C.charcoal,lineHeight:1.4}}>
               {showStudent&&<span>{f.studentName} · </span>}
-              {f.artEmoji} {f.artwork||"수업 피드백"}
+              {f.artwork||"수업 피드백"}
             </div>
             <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
               {extraBadges}
@@ -1352,8 +1423,47 @@ const FeedbackMessageRow=({feedback:f,showStudent=false,onOpen,onEdit,onDelete,e
 };
 
 // ─── TABS ──────────────────────────────────────────────────
-const ADMIN_TABS =[{id:"home",icon:"⌂",label:"홈"},{id:"attendance",icon:"✅",label:"출석"},{id:"students",icon:"◉",label:"학생"},{id:"artworks",icon:"◈",label:"작품"},{id:"chat",icon:"💬",label:"채팅"},{id:"more",icon:"⋯",label:"더보기"}];
-const PARENT_TABS=[{id:"phome",icon:"🏠",label:"홈"},{id:"pfeedback",icon:"💬",label:"피드백"},{id:"pnotice",icon:"📢",label:"공지"},{id:"pchat",icon:"📨",label:"채팅"},{id:"pmore",icon:"⋯",label:"더보기"}];
+const TABLER_PATHS={
+  home:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l-2 0l9 -9l9 9l-2 0"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"/><path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6"/>',
+  calendarCheck:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M11.5 21h-5.5a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v6"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M4 11h16"/><path d="M15 19l2 2l4 -4"/>',
+  users:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"/><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 21v-2a4 4 0 0 0 -3 -3.85"/>',
+  palette:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 21a9 9 0 0 1 0 -18c4.97 0 9 3.582 9 8c0 1.06 -.474 2.078 -1.318 2.828c-.844 .75 -1.989 1.172 -3.182 1.172h-2.5a2 2 0 0 0 -1 3.75a1.3 1.3 0 0 1 -1 2.25"/><path d="M8.5 10.5m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M12.5 7.5m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M16.5 10.5m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/>',
+  messageCircle:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 20l1.3 -3.9c-2.324 -3.437 -1.426 -7.872 2.1 -10.374c3.526 -2.501 8.59 -2.296 11.845 .48c3.255 2.777 3.695 7.266 1.029 10.501c-2.666 3.235 -7.615 4.215 -11.574 2.293l-4.7 1"/>',
+  dots:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M12 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M19 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/>',
+  message2:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 9h8"/><path d="M8 13h6"/><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3h12z"/>',
+  speakerphone:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 8a3 3 0 0 1 0 6"/><path d="M10 8v11a1 1 0 0 1 -1 1h-1a1 1 0 0 1 -1 -1v-5"/><path d="M12 8h0l4.524 -3.77a.9 .9 0 0 1 1.476 .692v12.156a.9 .9 0 0 1 -1.476 .692l-4.524 -3.77h-8a1 1 0 0 1 -1 -1v-4a1 1 0 0 1 1 -1h8"/>',
+  star:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 17.75l-6.172 3.245l1.179 -6.873l-5 -4.867l6.9 -1l3.086 -6.253l3.086 6.253l6.9 1l-5 4.867l1.179 6.873z"/>',
+  calendar:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12z"/><path d="M16 3v4"/><path d="M8 3v4"/><path d="M4 11h16"/>',
+  currencyWon:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 5l4 14l3 -6l3 6l4 -14"/><path d="M4 11h16"/><path d="M4 15h16"/>',
+  chartBar:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 13m0 1a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v5a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1z"/><path d="M9 9m0 1a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v9a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1z"/><path d="M15 5m0 1a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v13a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1z"/>',
+  trendingUp:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 17l4 -4l4 4l4 -6l4 3"/><path d="M14 18h7"/><path d="M21 18v-5"/>',
+  building:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 21l18 0"/><path d="M9 8l1 0"/><path d="M9 12l1 0"/><path d="M9 16l1 0"/><path d="M14 8l1 0"/><path d="M14 12l1 0"/><path d="M14 16l1 0"/><path d="M5 21v-16a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16"/>',
+  bell:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 5a2 2 0 1 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3h-16a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6"/><path d="M9 17v1a3 3 0 0 0 6 0v-1"/>',
+  user:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0"/><path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2"/>',
+  chevronRight:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 6l6 6l-6 6"/>',
+  photoPlus:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15 8h.01"/><path d="M13 21h-7a2 2 0 0 1 -2 -2v-11a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v7"/><path d="M3 16l5 -5c.928 -.893 2.072 -.893 3 0l3 3"/><path d="M14 14l1 -1c.928 -.893 2.072 -.893 3 0"/><path d="M16 19h6"/><path d="M19 16v6"/>',
+  photo:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15 8h.01"/><path d="M4 6m0 2a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2z"/><path d="M4 16l5 -5c.928 -.893 2.072 -.893 3 0l2 2"/><path d="M14 14l1 -1c.928 -.893 2.072 -.893 3 0l2 2"/>',
+  plus:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14"/><path d="M5 12l14 0"/>',
+  clipboardText:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2"/><path d="M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z"/><path d="M9 12h6"/><path d="M9 16h6"/>',
+  list:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 6l11 0"/><path d="M9 12l11 0"/><path d="M9 18l11 0"/><path d="M5 6l0 .01"/><path d="M5 12l0 .01"/><path d="M5 18l0 .01"/>',
+  settings:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z"/><path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0"/>',
+  pencil:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4"/><path d="M13.5 6.5l4 4"/>',
+  targetArrow:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M12 7a5 5 0 1 0 5 5"/><path d="M13 3.055a9 9 0 1 0 7.941 7.945"/><path d="M15 6l3 -3"/><path d="M18 3l-3 0l0 3"/>',
+  lock:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-6z"/><path d="M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0"/><path d="M8 11v-4a4 4 0 1 1 8 0v4"/>',
+  userExclamation:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0"/><path d="M6 21v-2a4 4 0 0 1 4 -4h4c.348 0 .686 .045 1.008 .128"/><path d="M19 16v3"/><path d="M19 22v.01"/>',
+  search:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0"/><path d="M21 21l-6 -6"/>',
+  fileText:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/><path d="M9 9l1 0"/><path d="M9 13l6 0"/><path d="M9 17l6 0"/>',
+  userPlus:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0"/><path d="M16 19h6"/><path d="M19 16v6"/><path d="M6 21v-2a4 4 0 0 1 4 -4h4"/>',
+  bulb:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7"/><path d="M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0 -1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3"/><path d="M9.7 17l4.6 0"/>',
+  fileTypePdf:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M5 12v-7a2 2 0 0 1 2 -2h7l5 5v4"/><path d="M5 18h1.5a1.5 1.5 0 0 0 0 -3h-1.5v6"/><path d="M17 18h2"/><path d="M20 15h-3v6"/><path d="M11 15v6h1a2 2 0 0 0 2 -2v-2a2 2 0 0 0 -2 -2h-1z"/>',
+  deviceMobile:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 5a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2v-14z"/><path d="M11 4h2"/><path d="M12 17v.01"/>',
+};
+const TablerIcon=({name,size=22,color="currentColor"})=>(
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{__html:TABLER_PATHS[name]??""}}/>
+);
+
+const ADMIN_TABS =[{id:"home",icon:"home",label:"홈"},{id:"attendance",icon:"calendarCheck",label:"출석"},{id:"students",icon:"users",label:"학생목록"},{id:"artworks",icon:"palette",label:"학생작품"},{id:"chat",icon:"messageCircle",label:"학부모채팅"},{id:"more",icon:"dots",label:"더보기"}];
+const PARENT_TABS=[{id:"phome",icon:"home",label:"홈"},{id:"pfeedback",icon:"message2",label:"피드백"},{id:"pnotice",icon:"speakerphone",label:"공지"},{id:"pchat",icon:"messageCircle",label:"원장님채팅"},{id:"pmore",icon:"dots",label:"더보기"}];
 
 // ══════════════════════════════════════════════════════════════
 // 1. ADMIN HOME
@@ -1384,11 +1494,16 @@ const AdminHome=({students,schedules,notices,feedbacks,onNavigate,logoSrc,isNati
           </div>
         </div>
         <div style={{display:"flex",gap:8}}>
-          <div onClick={()=>onNavigate("notice",{keepTab:true})} style={{width:38,height:38,borderRadius:19,background:C.beige,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,cursor:"pointer",position:"relative"}}>
-            📢{generalNotices.some(n=>n.important)&&<div style={{position:"absolute",top:5,right:5,width:8,height:8,borderRadius:4,background:C.red,border:"2px solid white"}}/>}
+          <div onClick={()=>onNavigate("notice",{keepTab:true})} style={{width:40,height:40,borderRadius:20,background:C.beige,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",position:"relative"}}>
+            <TablerIcon name="speakerphone" size={20} color={C.terra}/>
+            {generalNotices.some(n=>n.important)&&<div style={{position:"absolute",top:5,right:5,width:8,height:8,borderRadius:4,background:C.red,border:"2px solid white"}}/>}
           </div>
-          <div onClick={()=>onNavigate("feedback_history",{keepTab:true})} style={{width:38,height:38,borderRadius:19,background:C.beige,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,cursor:"pointer",position:"relative"}}>
-            🔔{unreadFeedback>0&&<div style={{position:"absolute",top:5,right:5,width:8,height:8,borderRadius:4,background:C.red,border:"2px solid white"}}/>}
+          <div onClick={()=>onNavigate("feedback_history",{keepTab:true})} style={{width:40,height:40,borderRadius:20,background:C.beige,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",position:"relative"}}>
+            <TablerIcon name="bell" size={20} color={C.terra}/>
+            {unreadFeedback>0&&<div style={{position:"absolute",top:5,right:5,width:8,height:8,borderRadius:4,background:C.red,border:"2px solid white"}}/>}
+          </div>
+          <div onClick={()=>onNavigate("payments",{keepTab:true})} style={{width:40,height:40,borderRadius:20,background:C.beige,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
+            <TablerIcon name="currencyWon" size={20} color={C.terra}/>
           </div>
         </div>
       </div>
@@ -1413,7 +1528,7 @@ const AdminHome=({students,schedules,notices,feedbacks,onNavigate,logoSrc,isNati
       {unpaid.length>0&&(
         <Card onClick={()=>onNavigate("payments")} style={{border:`1px solid #FDEAEA`,background:"#FFFAFA",marginBottom:12}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <span style={{fontSize:24}}>💸</span>
+            <div style={{width:40,height:40,borderRadius:20,background:C.cream,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><TablerIcon name="currencyWon" size={20} color={C.terra}/></div>
             <div><div style={{fontSize:13,fontWeight:700,color:C.charcoal}}>미납 학생 {unpaid.length}명</div><div style={{fontSize:12,color:C.warm,marginTop:2}}>{unpaid.map(s=>s.name).join(", ")}</div></div>
             <span style={{marginLeft:"auto",fontSize:14,color:C.terra}}>→</span>
           </div>
@@ -1426,7 +1541,7 @@ const AdminHome=({students,schedules,notices,feedbacks,onNavigate,logoSrc,isNati
       {/* Notice preview */}
       <Card onClick={()=>onNavigate("notice")} style={{border:`1px solid ${C.beige}`}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:20}}>📢</span>
+          <span style={{flexShrink:0,display:"flex"}}><TablerIcon name="speakerphone" size={20} color={C.terra}/></span>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:12,fontWeight:700,color:C.charcoal,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{generalNotices[0]?.title??""}</div>
             <div style={{fontSize:11,color:C.warm,marginTop:2}}>{generalNotices[0]?.date??""}</div>
@@ -1548,21 +1663,21 @@ const AdminStudents=({students,onSelect,onUpdateStudent,onAddStudent,onDeleteStu
             </div>
           )}
         </div>
-        <button onClick={()=>setShowReg(true)} style={{background:C.terra,color:"white",border:"none",borderRadius:20,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ 학생 등록</button>
+        <button onClick={()=>setShowReg(true)} style={{background:C.terra,color:"white",border:"none",borderRadius:20,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}><TablerIcon name="userPlus" size={15} color="white"/>학생 등록</button>
       </div>
       <Card style={{marginBottom:16}}>
         <div style={{fontSize:12,color:C.warm,marginBottom:10}}>월별 학생 출석부를 Word 파일로 저장합니다</div>
         <AttendanceExportBtn students={students} attendanceRecords={attendanceRecords} academy={academy}/>
       </Card>
       <div style={{display:"flex",alignItems:"center",gap:8,background:C.beige,borderRadius:12,padding:"10px 14px",marginBottom:12}}>
-        <span style={{color:C.warm}}>🔍</span>
+        <TablerIcon name="search" size={16} color={C.warm}/>
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="이름, 학교로 검색" style={{flex:1,border:"none",background:"none",fontSize:14,color:C.charcoal,outline:"none"}}/>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:16,overflowX:"auto",alignItems:"center"}}>
         {DEPTS.map(f=><button key={f.id} onClick={()=>{setFilter(f.id);setShowUnlinkedOnly(false);}} style={{flexShrink:0,padding:"6px 14px",borderRadius:20,border:filter===f.id&&!showUnlinkedOnly?"none":`1px solid ${C.light}`,background:filter===f.id&&!showUnlinkedOnly?C.terra:C.white,color:filter===f.id&&!showUnlinkedOnly?"white":C.warm,fontSize:12,fontWeight:600,cursor:"pointer"}}>{f.l}</button>)}
         {unlinkedCount>0&&(
-          <button onClick={()=>setShowUnlinkedOnly(v=>!v)} style={{flexShrink:0,padding:"6px 14px",borderRadius:20,border:showUnlinkedOnly?"none":`1px solid #F0C987`,background:showUnlinkedOnly?"#F0C987":C.white,color:showUnlinkedOnly?C.charcoal:C.gold,fontSize:12,fontWeight:700,cursor:"pointer"}}>
-            👤 미연결 {unlinkedCount}
+          <button onClick={()=>setShowUnlinkedOnly(v=>!v)} style={{flexShrink:0,padding:"6px 14px",borderRadius:20,border:showUnlinkedOnly?"none":`1px solid #F0C987`,background:showUnlinkedOnly?"#F0C987":C.white,color:showUnlinkedOnly?C.charcoal:C.gold,fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+            <TablerIcon name="userExclamation" size={14} color={showUnlinkedOnly?C.charcoal:C.gold}/>미연결 {unlinkedCount}
           </button>
         )}
       </div>
@@ -1796,7 +1911,7 @@ const StudentRegisterModal=({onClose,onSave,initial=null,academyOptions,onUpdate
               {avatarMode === "photo" && photoUri ? (
                 <img src={photoUri} alt="프로필" style={{width:64,height:64,borderRadius:32,objectFit:"cover",border:`2px solid ${C.terra}`}}/>
               ) : avatarMode === "emoji" ? (
-                <StudentAvatar student={{ art: selArt, useEmojiAvatar: true }} size={64} fontSize={30}/>
+                <div style={{width:64,height:64,borderRadius:32,background:"#F5EFE4",display:"flex",alignItems:"center",justifyContent:"center",fontSize:30,flexShrink:0}}>{selArt}</div>
               ) : (
                 <img src={DEFAULT_STUDENT_AVATAR_URL} alt="기본 프로필" style={{width:64,height:64,borderRadius:32,objectFit:"cover",border:`2px solid ${C.light}`}}/>
               )}
@@ -2217,15 +2332,15 @@ const StudentDetail=({student,feedbacks,artworks,academy,attendanceRecords=[],on
     {id:"artworks",l:`작품 ${arts.length}`},
     {id:"attendance",l:"출결"},
     {id:"feedback",l:"피드백"},
-    {id:"exam",l:"🎯 입시"},
-    {id:"consult",l:"🔒 상담"},
+    {id:"exam",l:"입시",icon:"targetArrow"},
+    {id:"consult",l:"상담",icon:"lock"},
   ];
   return(
     <div>
       <div style={{background:`linear-gradient(160deg,${C.beige},${C.cream})`,padding:"16px 16px 24px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
           <BackBtn onClick={onBack}/>
-          <button onClick={onEdit} style={{padding:"6px 14px",borderRadius:20,background:C.terra,color:"white",border:"none",fontSize:12,fontWeight:700,cursor:"pointer",marginBottom:16}}>✏️ 정보 수정</button>
+          <button onClick={onEdit} style={{padding:"6px 14px",borderRadius:20,background:C.terra,color:"white",border:"none",fontSize:12,fontWeight:700,cursor:"pointer",marginBottom:16,display:"flex",alignItems:"center",gap:5}}><TablerIcon name="pencil" size={14} color="white"/>정보 수정</button>
         </div>
         <div style={{display:"flex",gap:16,alignItems:"center"}}>
           <StudentAvatar student={student} size={70} fontSize={36} style={{background:"white",boxShadow:"0 4px 16px rgba(0,0,0,0.1)"}}/>
@@ -2237,7 +2352,7 @@ const StudentDetail=({student,feedbacks,artworks,academy,attendanceRecords=[],on
         </div>
       </div>
       <div style={{display:"flex",background:C.white,borderBottom:`1px solid ${C.beige}`}}>
-        {tabs.map(t=><button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,padding:"12px 0",border:"none",background:"none",fontSize:12,fontWeight:tab===t.id?700:400,color:tab===t.id?C.terra:C.warm,borderBottom:`2px solid ${tab===t.id?C.terra:"transparent"}`,cursor:"pointer"}}>{t.l}</button>)}
+        {tabs.map(t=><button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,padding:"12px 0",border:"none",background:"none",fontSize:12,fontWeight:tab===t.id?700:400,color:tab===t.id?C.terra:C.warm,borderBottom:`2px solid ${tab===t.id?C.terra:"transparent"}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:3}}>{t.icon&&<TablerIcon name={t.icon} size={13} color={tab===t.id?C.terra:C.warm}/>}{t.l}</button>)}
       </div>
       <div style={{padding:16}}>
         {tab==="info"&&(
@@ -2359,8 +2474,8 @@ const AdminArtworks=({artworks,students,onUpload,onBeforeAfter,onArtworkFeedback
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"16px 0 12px",paddingRight:0}}>
         <div style={{fontSize:18,fontWeight:800,color:C.charcoal}}>작품 아카이브</div>
         <div style={{display:"flex",gap:8,flexShrink:0}}>
-          <button onClick={onBeforeAfter} style={{background:C.beige,color:C.terra,border:`1px solid ${C.terraL}`,borderRadius:20,padding:"8px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>📊 성장비교</button>
-          <button onClick={onUpload} style={{background:C.terra,color:"white",border:"none",borderRadius:20,padding:"8px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>📸 업로드</button>
+          <button onClick={onBeforeAfter} style={{background:C.beige,color:C.terra,border:`1px solid ${C.terraL}`,borderRadius:20,padding:"8px 14px",fontSize:11,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}><TablerIcon name="trendingUp" size={16} color={C.terra}/>성장비교</button>
+          <button onClick={onUpload} style={{background:C.terra,color:"white",border:"none",borderRadius:20,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}><TablerIcon name="photoPlus" size={16} color="white"/>업로드</button>
         </div>
       </div>
       {students.length>0&&(
@@ -3011,7 +3126,7 @@ const AdminPayments=({students,onUpdateStudent,linkedParents,onSendUnpaidReminde
                   onClick={sendUnpaidReminder}
                   disabled={sendingReminder||!hasLinkedParent}
                   style={{width:"100%",padding:14,borderRadius:12,background:hasLinkedParent?"#FFF0E6":C.beige,color:hasLinkedParent?C.terra:C.warm,border:`1px solid ${hasLinkedParent?C.terraL:C.light}`,fontSize:14,fontWeight:700,cursor:hasLinkedParent&&!sendingReminder?"pointer":"not-allowed"}}
-                >{sendingReminder?"발송 중…":"📢 미납 알림 보내기"}</button>
+                >{sendingReminder?"발송 중…":<span style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6}}><TablerIcon name="speakerphone" size={16} color={hasLinkedParent?C.terra:C.warm}/>미납 알림 보내기</span>}</button>
                 {!hasLinkedParent&&(
                   <div style={{fontSize:11,color:C.warm,marginTop:8,textAlign:"center",lineHeight:1.5}}>연결된 학부모가 없습니다.<br/>학부모 계정에서 초대 후 알림을 보낼 수 있습니다.</div>
                 )}
@@ -3481,6 +3596,7 @@ const NoticeManager=({notices,onAddNotice,onUpdateNotice,onDeleteNotice,onBack,i
   const[title,setTitle]=useState("");
   const[content,setContent]=useState("");
   const[important,setImportant]=useState(false);
+  const[selNotice,setSelNotice]=useState(null);
 
   const scopedNotices=useMemo(()=>({
     general:notices.filter(n=>getNoticeScope(n)==="general"),
@@ -3532,7 +3648,7 @@ const NoticeManager=({notices,onAddNotice,onUpdateNotice,onDeleteNotice,onBack,i
             {isParent?"등록된 공지가 없습니다.":noticeTab==="individual"?"개별 공지가 없습니다.":"작성된 전체 공지가 없습니다."}
           </div>
         ):visibleNotices.map(n=>(
-          <Card key={n.id} style={{borderLeft:`3px solid ${n.important?C.red:C.light}`}}>
+          <Card key={n.id} onClick={isParent?()=>setSelNotice(n):undefined} style={{borderLeft:`3px solid ${n.important?C.red:C.light}`,cursor:isParent?"pointer":"default"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
               <div style={{fontSize:14,fontWeight:700,color:C.charcoal,flex:1,paddingRight:8}}>{n.title}</div>
               <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -3543,15 +3659,27 @@ const NoticeManager=({notices,onAddNotice,onUpdateNotice,onDeleteNotice,onBack,i
                   onDelete={()=>{if(window.confirm("이 공지를 삭제할까요?"))void onDeleteNotice(n.id);}}
                 />}
                 {!isParent&&getNoticeScope(n)==="individual"&&(
-                  <button onClick={()=>{if(window.confirm("이 공지를 삭제할까요?"))void onDeleteNotice(n.id);}} style={{padding:"4px 10px",borderRadius:8,background:"#FDEAEA",color:C.red,border:"none",fontSize:11,fontWeight:600,cursor:"pointer"}}>삭제</button>
+                  <button onClick={(e)=>{e.stopPropagation();if(window.confirm("이 공지를 삭제할까요?"))void onDeleteNotice(n.id);}} style={{padding:"4px 10px",borderRadius:8,background:"#FDEAEA",color:C.red,border:"none",fontSize:11,fontWeight:600,cursor:"pointer"}}>삭제</button>
                 )}
               </div>
             </div>
-            <div style={{fontSize:13,color:C.charcoal,lineHeight:1.7,marginBottom:8}}>{n.content}</div>
+            <div style={{fontSize:13,color:C.charcoal,lineHeight:1.7,marginBottom:8,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:isParent?3:undefined,WebkitBoxOrient:"vertical"}}>{n.content}</div>
             <div style={{fontSize:11,color:C.warm}}>{n.date}</div>
           </Card>
         ))}
       </div>
+      <BottomSheet open={!!selNotice} onClose={()=>setSelNotice(null)} title="공지사항">
+        {selNotice&&(
+          <div>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+              {selNotice.important&&<Badge color="red" small>중요</Badge>}
+              <div style={{fontSize:15,fontWeight:700,color:C.charcoal}}>{selNotice.title}</div>
+            </div>
+            <div style={{fontSize:12,color:C.warm,marginBottom:16}}>{selNotice.date}</div>
+            <div style={{fontSize:14,color:C.charcoal,lineHeight:1.9,whiteSpace:"pre-wrap"}}>{selNotice.content}</div>
+          </div>
+        )}
+      </BottomSheet>
       <BottomSheet open={showForm} onClose={()=>setShowForm(false)} title={editId?"공지 수정":"공지 작성"}>
         <div style={{marginBottom:12}}>
           <div style={{fontSize:12,color:C.warm,marginBottom:4}}>제목</div>
@@ -4066,42 +4194,47 @@ const AdminAttendanceTab=({students,attendanceRecords,academyId,classTimes})=>{
   );
 };
 
-const AdminMore=({students,onNavigate,academy,logoSrc})=>(
-  <div style={{padding:"0 16px 16px"}}>
-    <div style={{fontSize:18,fontWeight:800,color:C.charcoal,padding:"16px 0"}}>더보기</div>
-    <Card style={{marginBottom:20,padding:0,overflow:"hidden",cursor:"pointer"}} onClick={()=>onNavigate("settings")}>
-      <div style={{background:`linear-gradient(135deg,${C.sand},${C.beige})`,padding:"20px 16px",display:"flex",alignItems:"center",gap:14}}>
-        <div style={{flex:1}}>
-          <div style={{fontSize:16,fontWeight:800,color:C.charcoal}}>{academy.name}</div>
-          <div style={{fontSize:12,color:C.warm,marginTop:2}}>{academy.tagline}</div>
-          <div style={{fontSize:11,color:C.terra,marginTop:4,fontWeight:600}}>학생 {students.length}명 · 학원 정보 수정 ›</div>
+const AdminMore=({students,onNavigate,academy,logoSrc})=>{
+  const appVersion = useAppVersionLabel();
+  return (
+    <div style={{padding:"0 16px 16px"}}>
+      <div style={{fontSize:18,fontWeight:800,color:C.charcoal,padding:"16px 0"}}>더보기</div>
+      <Card style={{marginBottom:20,padding:0,overflow:"hidden",cursor:"pointer"}} onClick={()=>onNavigate("settings")}>
+        <div style={{background:`linear-gradient(135deg,${C.sand},${C.beige})`,padding:"20px 16px",display:"flex",alignItems:"center",gap:14}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:16,fontWeight:800,color:C.charcoal}}>{academy.name}</div>
+            <div style={{fontSize:12,color:C.warm,marginTop:2}}>{academy.tagline}</div>
+            <div style={{fontSize:11,color:C.terra,marginTop:4,fontWeight:600}}>학생 {students.length}명 · 학원 정보 수정 ›</div>
+          </div>
         </div>
-      </div>
-    </Card>
-    <Card style={{padding:0}}>
-      {[
-        {icon:"⭐",label:"플랜 업그레이드", sub:"Free·Standard·Premium", page:"upgrade"},
-        {icon:"📅",label:"일정 관리",    sub:"수업·보강·휴원 일정", page:"schedule"},
-        {icon:"₩",label:"수강료 관리",    sub:"납부·미납 확인",     page:"payments"},
-        {icon:"📢",label:"공지 관리",    sub:"학부모 공지 발송",  page:"notice"},
-        {icon:"📊",label:"월별 통계",    sub:"매출·출석 분석",   page:"stats"},
-        {icon:"📈",label:"성장 비교",    sub:"Before/After 슬라이더", page:"beforeafter"},
-        {icon:"👨‍👩‍👧",label:"학부모 계정",  sub:"초대·연결 관리",    page:"parent_accounts"},
-        {icon:"💬",label:"학부모 피드백",sub:"피드백 발송 이력",  page:"feedback_history"},
-        {icon:"🏫",label:"학원 정보",    sub:"학원명·연락처", page:"settings"},
-        {icon:"🔔",label:"알림 설정",   sub:"앱 푸시 알림",      page:"settings_notif"},
-        {icon:"👤",label:"계정 설정",   sub:"프로필·비밀번호",   page:"settings_account"},
-      ].map((item,i,arr)=>(
-        <div key={item.label} onClick={()=>item.page&&onNavigate(item.page)} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 16px",borderBottom:i<arr.length-1?`1px solid ${C.beige}`:"none",cursor:item.page?"pointer":"default",opacity:item.page?1:0.55}}>
-          <div style={{width:38,height:38,borderRadius:10,background:C.cream,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{item.icon}</div>
-          <div style={{flex:1}}><div style={{fontSize:14,fontWeight:600,color:C.charcoal}}>{item.label}</div><div style={{fontSize:11,color:C.warm,marginTop:1}}>{item.sub}</div></div>
-          <span style={{color:C.light,fontSize:16}}>›</span>
-        </div>
-      ))}
-    </Card>
-    <div style={{textAlign:"center",marginTop:24,color:C.light,fontSize:11}}>ArtMuse v1.0.0 · art muse</div>
-  </div>
-);
+      </Card>
+      <Card style={{padding:0}}>
+        {[
+          {icon:"star",       label:"플랜 업그레이드", sub:"Free·Standard·Premium",   page:"upgrade"},
+          {icon:"calendar",   label:"일정 관리",       sub:"수업·보강·휴원 일정",     page:"schedule"},
+          {icon:"currencyWon",label:"수강료 관리",     sub:"납부·미납 확인",           page:"payments"},
+          {icon:"speakerphone",label:"공지 관리",      sub:"학부모 공지 발송",         page:"notice"},
+          {icon:"chartBar",   label:"월별 통계",       sub:"매출·출석 분석",           page:"stats"},
+          {icon:"trendingUp", label:"성장 비교",       sub:"Before/After 슬라이더",    page:"beforeafter"},
+          {icon:"users",      label:"학부모 계정",     sub:"초대·연결 관리",           page:"parent_accounts"},
+          {icon:"message2",   label:"학부모 피드백",   sub:"피드백 발송 이력",         page:"feedback_history"},
+          {icon:"building",   label:"학원 정보",       sub:"학원명·연락처",            page:"settings"},
+          {icon:"bell",       label:"알림 설정",       sub:"앱 푸시 알림",             page:"settings_notif"},
+          {icon:"user",       label:"계정 설정",       sub:"프로필·비밀번호",          page:"settings_account"},
+        ].map((item,i,arr)=>(
+          <div key={item.label} onClick={()=>item.page&&onNavigate(item.page)} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 16px",borderBottom:i<arr.length-1?`1px solid ${C.beige}`:"none",cursor:item.page?"pointer":"default",opacity:item.page?1:0.55}}>
+            <div style={{width:44,height:44,borderRadius:12,background:C.cream,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <TablerIcon name={item.icon} size={22} color={C.terra}/>
+            </div>
+            <div style={{flex:1}}><div style={{fontSize:15,fontWeight:500,color:C.charcoal}}>{item.label}</div><div style={{fontSize:12,color:C.warm,marginTop:2}}>{item.sub}</div></div>
+            <TablerIcon name="chevronRight" size={18} color={C.light}/>
+          </div>
+        ))}
+      </Card>
+      <div style={{textAlign:"center",marginTop:24,color:C.light,fontSize:11}}>ArtMuse {appVersion} · art muse</div>
+    </div>
+  );
+};
 
 // ══════════════════════════════════════════════════════════════
 // 11-13. PARENT VIEWS
@@ -4148,7 +4281,7 @@ const ParentAppHeader = ({
                       whiteSpace: "nowrap",
                     }}
                   >
-                    <span>{child.art}</span>
+                    <TablerIcon name="palette" size={14} color={active?"white":C.terra}/>
                     <span>{child.name}</span>
                   </button>
                 );
@@ -4159,19 +4292,19 @@ const ParentAppHeader = ({
                   onClick={onAddChild}
                   title="자녀 추가 연결"
                   style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: 17,
-                    border: `1px dashed ${C.light}`,
-                    background: C.white,
-                    color: C.warm,
-                    fontSize: 18,
-                    lineHeight: 1,
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    border: `1.5px dashed ${C.light}`,
+                    background: "none",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                     cursor: "pointer",
                     flexShrink: 0,
                   }}
                 >
-                  +
+                  <TablerIcon name="plus" size={16} color={C.warm}/>
                 </button>
               )}
             </div>
@@ -4184,10 +4317,10 @@ const ParentAppHeader = ({
             onClick={onNoticeTap}
             style={{
               width: 42, height: 42, borderRadius: 21, background: C.beige,
-              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
             }}
           >
-            🔔
+            <TablerIcon name="bell" size={20} color={C.terra}/>
           </div>
           {noticeCount > 0 && (
             <div style={{
@@ -4257,7 +4390,7 @@ const ParentHome=({student,feedbacks,artworks,notices,attendanceRecords=[],sched
         </Card>
       ) : (
         <Card style={{marginBottom:14,display:"flex",alignItems:"center",gap:12,border:`1px solid ${C.beige}`}}>
-          <div style={{width:44,height:44,borderRadius:22,background:C.beige,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>📋</div>
+          <div style={{width:44,height:44,borderRadius:22,background:C.beige,display:"flex",alignItems:"center",justifyContent:"center"}}><TablerIcon name="clipboardText" size={22} color={C.warm}/></div>
           <div>
             <div style={{fontSize:13,fontWeight:700,color:C.charcoal}}>오늘 출석 기록 없음</div>
             <div style={{fontSize:12,color:C.warm,marginTop:2}}>원장님이 출결 처리하면 여기에 표시됩니다</div>
@@ -4268,7 +4401,7 @@ const ParentHome=({student,feedbacks,artworks,notices,attendanceRecords=[],sched
       {latestNotice&&(
         <Card onClick={()=>onTab("pnotice")} style={{marginBottom:14,border:latestNotice.important?`1px solid ${C.terraL}`:`1px solid ${C.beige}`,cursor:"pointer"}}>
           <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
-            <span style={{fontSize:20,flexShrink:0}}>📢</span>
+            <span style={{flexShrink:0,display:"flex"}}><TablerIcon name="speakerphone" size={20} color={C.terra}/></span>
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
                 <div style={{fontSize:13,fontWeight:700,color:C.charcoal,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{latestNotice.title}</div>
@@ -4283,7 +4416,7 @@ const ParentHome=({student,feedbacks,artworks,notices,attendanceRecords=[],sched
       )}
 
       <div style={{marginBottom:18}}>
-        <SecTitle action="전체보기 →" onAction={()=>onTab("partworks")}>🎨 최근 작품</SecTitle>
+        <SecTitle action="전체보기 →" onAction={()=>onTab("partworks")}><span style={{display:"inline-flex",alignItems:"center",gap:5,verticalAlign:"middle"}}><TablerIcon name="palette" size={16} color={C.terra}/>최근 작품</span></SecTitle>
         <div style={{display:"flex",gap:10,overflowX:"auto",paddingBottom:4}}>
           {arts.slice(0,4).map(a=>(
             <div key={a.id} style={{flexShrink:0,width:100}}>
@@ -4294,7 +4427,7 @@ const ParentHome=({student,feedbacks,artworks,notices,attendanceRecords=[],sched
           ))}
         </div>
       </div>
-      <SecTitle action="전체보기 →" onAction={()=>onTab("pfeedback")}>💬 최근 피드백</SecTitle>
+      <SecTitle action="전체보기 →" onAction={()=>onTab("pfeedback")}><span style={{display:"inline-flex",alignItems:"center",gap:5,verticalAlign:"middle"}}><TablerIcon name="message2" size={16} color={C.terra}/>최근 피드백</span></SecTitle>
       {fbs.length===0?(
         <Card style={{textAlign:"center",padding:"24px 0",color:C.warm,fontSize:13}}>아직 피드백이 없습니다</Card>
       ):fbs.slice(0,3).map(f=>(
@@ -4316,7 +4449,7 @@ const ParentArtworks=({student,artworks,academy,feedbacks=[],onUpload})=>{
         </div>
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
-        <button onClick={onUpload} style={{width:"100%",padding:14,borderRadius:12,background:C.terra,color:"white",border:"none",fontSize:14,fontWeight:700,cursor:"pointer"}}>📷 집에서 완성한 작품 올리기</button>
+        <button onClick={onUpload} style={{width:"100%",padding:14,borderRadius:12,background:C.terra,color:"white",border:"none",fontSize:14,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><TablerIcon name="photoPlus" size={18} color="white"/>집에서 완성한 작품 올리기</button>
         <PortfolioExportBtn student={student} artworks={artworks} academy={academy} feedbacks={feedbacks} style={{width:"100%"}} />
       </div>
       {sel?(
@@ -4395,9 +4528,11 @@ const ChatInput=({onSend,placeholder="메시지를 입력하세요…",disabled}
 // ── 학부모: 피드백 목록 + 답변 ────────────────────────────────
 const ParentFeedback=({student,feedbacks,onMarkRead})=>{
   const fbs=sortFeedbacksRecentFirst(feedbacksForStudent(feedbacks, student));
+  const[selFb,setSelFb]=useState(null);
 
   const openFeedback=(f)=>{
     if(!f.read) onMarkRead?.([f.id]);
+    setSelFb(f);
   };
 
   return(
@@ -4411,6 +4546,15 @@ const ParentFeedback=({student,feedbacks,onMarkRead})=>{
           ))}
         </div>
       )}
+      <BottomSheet open={!!selFb} onClose={()=>setSelFb(null)} title="선생님 피드백">
+        {selFb&&(
+          <div>
+            <div style={{fontSize:15,fontWeight:700,color:C.charcoal,marginBottom:6}}>{selFb.artwork||"수업 피드백"}</div>
+            <div style={{fontSize:12,color:C.warm,marginBottom:16}}>{selFb.date}</div>
+            <div style={{fontSize:14,color:C.charcoal,lineHeight:1.9,whiteSpace:"pre-wrap"}}>{selFb.content}</div>
+          </div>
+        )}
+      </BottomSheet>
     </div>
   );
 };
@@ -4420,17 +4564,19 @@ const ParentMoreTab=({onTab})=>(
   <div style={{padding:"16px"}}>
     <div style={{fontSize:18,fontWeight:800,color:C.charcoal,padding:"8px 0 16px"}}>더보기</div>
     {[
-      {icon:"🖼",label:"작품",sub:"그림·작품 갤러리",tab:"partworks"},
-      {icon:"📅",label:"일정",sub:"출결 및 수업 일정",tab:"pschedule"},
-      {icon:"⚙️",label:"설정",sub:"알림·계정 설정",tab:"psettings"},
+      {icon:"photo",   label:"작품",sub:"그림·작품 갤러리",tab:"partworks"},
+      {icon:"calendar",label:"일정",sub:"출결 및 수업 일정",tab:"pschedule"},
+      {icon:"settings",label:"설정",sub:"알림·계정 설정",tab:"psettings"},
     ].map(item=>(
       <Card key={item.tab} onClick={()=>onTab(item.tab)} style={{display:"flex",alignItems:"center",gap:14,marginBottom:10,cursor:"pointer"}}>
-        <span style={{fontSize:28}}>{item.icon}</span>
-        <div style={{flex:1}}>
-          <div style={{fontSize:15,fontWeight:700,color:C.charcoal}}>{item.label}</div>
-          <div style={{fontSize:12,color:C.warm,marginTop:2}}>{item.sub}</div>
+        <div style={{width:40,height:40,borderRadius:12,background:C.cream,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+          <TablerIcon name={item.icon} size={20} color={C.terra}/>
         </div>
-        <span style={{color:C.light,fontSize:18}}>›</span>
+        <div style={{flex:1}}>
+          <div style={{fontSize:15,fontWeight:500,color:C.charcoal}}>{item.label}</div>
+          <div style={{fontSize:11,color:C.warm,marginTop:2}}>{item.sub}</div>
+        </div>
+        <TablerIcon name="chevronRight" size={18} color={C.light}/>
       </Card>
     ))}
   </div>
@@ -4623,7 +4769,7 @@ const ParentChatPage=({student,academyId,userId})=>{
     <div style={{display:"flex",flexDirection:"column",background:C.cream,paddingBottom:72}}>
       {/* 채팅방 헤더 */}
       <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px 12px",borderBottom:`1px solid ${C.light}`,background:C.white}}>
-        <div style={{width:40,height:40,borderRadius:20,background:C.terraL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:C.terra}}>🎨</div>
+        <div style={{width:40,height:40,borderRadius:20,background:C.terra,display:"flex",alignItems:"center",justifyContent:"center"}}><TablerIcon name="palette" size={20} color="white"/></div>
         <div>
           <div style={{fontSize:15,fontWeight:700,color:C.charcoal}}>아트뮤즈 선생님</div>
           <div style={{fontSize:11,color:C.warm}}>{student?.name} 학부모</div>
@@ -5447,7 +5593,7 @@ const ParentSettingsPage = ({
       <div style={{ padding: 16 }}>
         {tab === "notif" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div style={{ fontSize: 12, color: C.warm, marginBottom: 4 }}>📱 앱 푸시 알림</div>
+            <div style={{ fontSize: 12, color: C.warm, marginBottom: 4, display:"flex", alignItems:"center", gap:5 }}><TablerIcon name="deviceMobile" size={14} color={C.warm}/>앱 푸시 알림</div>
             <Card style={{ padding: 0 }}>
               {[
                 { key: "attendPush", l: "출결 알림", sub: "자녀 출결 처리 시 알림" },
@@ -5477,7 +5623,7 @@ const ParentSettingsPage = ({
                 </div>
                 {linkedChildren.map((child, i) => (
                   <div key={child.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderBottom: i < linkedChildren.length - 1 ? `1px solid ${C.beige}` : "none" }}>
-                    <span style={{ fontSize: 24 }}>{child.art}</span>
+                    <div style={{width:36,height:36,borderRadius:18,background:"#F5EFE4",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><TablerIcon name="palette" size={17} color={C.terra}/></div>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 700, color: C.charcoal }}>{child.name}</div>
                       <div style={{ fontSize: 11, color: C.warm, marginTop: 2 }}>{child.school} · {child.grade}</div>
@@ -5925,8 +6071,8 @@ const ParentAccountManager = ({ students, linkedParents, disconnectedParents, in
             {groupedLinkedParents.map(group=>(
               <Card key={group.key}>
                 <div style={{display:'flex',gap:12,alignItems:'center',marginBottom:10}}>
-                  <div style={{width:44,height:44,borderRadius:22,background:`linear-gradient(135deg,${C.terra},${C.terraD})`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,color:'white',fontWeight:700,flexShrink:0}}>
-                    {group.name[0]}
+                  <div style={{width:44,height:44,borderRadius:22,background:C.terra,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                    <TablerIcon name="user" size={20} color="white"/>
                   </div>
                   <div style={{flex:1}}>
                     <div style={{fontSize:14,fontWeight:700,color:C.charcoal}}>{group.name}</div>
@@ -5939,7 +6085,7 @@ const ParentAccountManager = ({ students, linkedParents, disconnectedParents, in
                 <div style={{display:'flex',flexDirection:'column',gap:8}}>
                   {group.children.map(child=>(
                     <div key={child.linkId} style={{background:C.beige,borderRadius:10,padding:'10px 12px',display:'flex',alignItems:'center',gap:10}}>
-                      <span style={{fontSize:22}}>{child.studentArt}</span>
+                      <div style={{width:32,height:32,borderRadius:16,background:"#F5EFE4",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><TablerIcon name="palette" size={16} color={C.terra}/></div>
                       <div style={{flex:1}}>
                         <div style={{fontSize:12,fontWeight:700,color:C.charcoal}}>{child.studentName}</div>
                         <div style={{fontSize:11,color:C.warm,marginTop:1}}>연결 자녀</div>
@@ -6001,8 +6147,8 @@ const ParentAccountManager = ({ students, linkedParents, disconnectedParents, in
             {disconnectedParents.map(p=>(
               <Card key={p.id} style={{opacity:0.85,border:`1px solid ${C.light}`}}>
                 <div style={{display:'flex',gap:12,alignItems:'center',marginBottom:10}}>
-                  <div style={{width:44,height:44,borderRadius:22,background:C.light,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,color:C.warm,fontWeight:700,flexShrink:0}}>
-                    {p.name[0]}
+                  <div style={{width:44,height:44,borderRadius:22,background:C.light,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                    <TablerIcon name="user" size={20} color={C.warm}/>
                   </div>
                   <div style={{flex:1}}>
                     <div style={{fontSize:14,fontWeight:700,color:C.charcoal}}>{p.name}</div>
@@ -6030,7 +6176,7 @@ const ParentAccountManager = ({ students, linkedParents, disconnectedParents, in
           <div style={{display:'flex',flexDirection:'column',gap:10}}>
             {/* How invite works */}
             <Card style={{background:'#FFF8F3',border:`1px solid ${C.terraL}`,marginBottom:4}}>
-              <div style={{fontSize:12,color:C.terra,fontWeight:700,marginBottom:6}}>💡 초대 방법</div>
+              <div style={{fontSize:12,color:C.terra,fontWeight:700,marginBottom:6,display:"flex",alignItems:"center",gap:5}}><TablerIcon name="bulb" size={14} color={C.terra}/>초대 방법</div>
               <div style={{display:'flex',flexDirection:'column',gap:4}}>
                 {['① + 초대 링크 버튼으로 자녀 선택 후 코드 생성','② 전달하기로 인증 문구를 학부모에게 공유','③ 학부모가 로그인 화면에서 코드 입력 → 자동 연결','④ 코드 유효기간 7일 · 연결 후에도 재로그인 가능'].map(s=>(
                   <div key={s} style={{fontSize:12,color:C.warm}}>{s}</div>
@@ -6133,29 +6279,32 @@ const ParentAccountManager = ({ students, linkedParents, disconnectedParents, in
 // ══════════════════════════════════════════════════════════════
 // MODE SELECT
 // ══════════════════════════════════════════════════════════════
-const ModeSelect=({onSelectRole,logoSrc,tagline,isNativeApp,onExitApp})=>(
-  <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100%",padding:"40px 24px",background:`linear-gradient(160deg,${C.cream},${C.beige})`}}>
-    <div style={{display:"flex",gap:16,marginBottom:4}}>
-      <img src={APP_ICON_ADMIN} alt="원장" style={{width:80,height:80,objectFit:"contain",borderRadius:18,boxShadow:"0 4px 16px rgba(61,53,48,0.15)"}}/>
-      <img src={APP_ICON_PARENT} alt="학부모" style={{width:80,height:80,objectFit:"contain",borderRadius:18,boxShadow:"0 4px 16px rgba(61,53,48,0.15)"}}/>
+const ModeSelect=({onSelectRole,logoSrc,tagline,isNativeApp,onExitApp})=>{
+  const appVersion = useAppVersionLabel();
+  return (
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100%",padding:"40px 24px",background:`linear-gradient(160deg,${C.cream},${C.beige})`}}>
+      <div style={{display:"flex",gap:16,marginBottom:4}}>
+        <img src={APP_ICON_ADMIN} alt="원장" style={{width:80,height:80,objectFit:"contain",borderRadius:18,boxShadow:"0 4px 16px rgba(61,53,48,0.15)"}}/>
+        <img src={APP_ICON_PARENT} alt="학부모" style={{width:80,height:80,objectFit:"contain",borderRadius:18,boxShadow:"0 4px 16px rgba(61,53,48,0.15)"}}/>
+      </div>
+      <div style={{fontSize:13,color:C.warm,marginTop:10,marginBottom:48,textAlign:"center",lineHeight:1.6}}>{tagline.split(", ").join("\n")}</div>
+      <div style={{display:"flex",flexDirection:"column",gap:14,width:"100%"}}>
+        <button onClick={()=>onSelectRole("admin")} style={{padding:18,borderRadius:16,background:C.terra,color:"white",border:"none",fontSize:16,fontWeight:800,cursor:"pointer",boxShadow:`0 8px 24px rgba(193,127,91,0.35)`,display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+          <span style={{fontSize:24}}>🎨</span> 원장 로그인
+        </button>
+        <button onClick={()=>onSelectRole("parent")} style={{padding:18,borderRadius:16,background:C.white,color:C.charcoal,border:`2px solid ${C.sand}`,fontSize:16,fontWeight:800,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+          <span style={{fontSize:24}}>👨‍👩‍👧</span> 학부모 로그인
+        </button>
+      </div>
+      <div style={{marginTop:40,fontSize:11,color:C.light}}>ArtMuse {appVersion}</div>
+      {isNativeApp&&(
+        <button onClick={onExitApp} style={{marginTop:16,padding:"8px 18px",borderRadius:20,background:"transparent",border:`1px solid ${C.sand}`,fontSize:12,fontWeight:600,cursor:"pointer",color:C.warm}}>
+          앱 종료
+        </button>
+      )}
     </div>
-    <div style={{fontSize:13,color:C.warm,marginTop:10,marginBottom:48,textAlign:"center",lineHeight:1.6}}>{tagline.split(", ").join("\n")}</div>
-    <div style={{display:"flex",flexDirection:"column",gap:14,width:"100%"}}>
-      <button onClick={()=>onSelectRole("admin")} style={{padding:18,borderRadius:16,background:C.terra,color:"white",border:"none",fontSize:16,fontWeight:800,cursor:"pointer",boxShadow:`0 8px 24px rgba(193,127,91,0.35)`,display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
-        <span style={{fontSize:24}}>🎨</span> 원장 로그인
-      </button>
-      <button onClick={()=>onSelectRole("parent")} style={{padding:18,borderRadius:16,background:C.white,color:C.charcoal,border:`2px solid ${C.sand}`,fontSize:16,fontWeight:800,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
-        <span style={{fontSize:24}}>👨‍👩‍👧</span> 학부모 로그인
-      </button>
-    </div>
-    <div style={{marginTop:40,fontSize:11,color:C.light}}>ArtMuse v1.0.0</div>
-    {isNativeApp&&(
-      <button onClick={onExitApp} style={{marginTop:16,padding:"8px 18px",borderRadius:20,background:"transparent",border:`1px solid ${C.sand}`,fontSize:12,fontWeight:600,cursor:"pointer",color:C.warm}}>
-        앱 종료
-      </button>
-    )}
-  </div>
-);
+  );
+};
 
 // ══════════════════════════════════════════════════════════════
 // ROOT APP
@@ -7069,8 +7218,8 @@ export default function App(){
                 return(
                   <button key={tab.id} onClick={()=>{setAdminTab(tab.id);setSubPage(null);}} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",padding:"10px 0 12px",background:"none",border:"none",cursor:"pointer",gap:3,color:adminTab===tab.id?C.terra:C.warm,position:"relative"}}>
                     {adminTab===tab.id&&<div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",width:28,height:2,borderRadius:2,background:C.terra}}/>}
-                    <span style={{fontSize:18,lineHeight:1,position:"relative",display:"inline-block"}}>
-                      {tab.icon}
+                    <span style={{lineHeight:1,position:"relative",display:"inline-block"}}>
+                      <TablerIcon name={tab.icon} size={22} color={adminTab===tab.id?C.terra:C.warm}/>
                       {badge&&<span style={{position:"absolute",top:-2,right:-4,width:8,height:8,borderRadius:"50%",background:"#E53935",border:"1.5px solid #fff"}}/>}
                     </span>
                     <span style={{fontSize:9,fontWeight:adminTab===tab.id?700:400}}>{tab.label}</span>
@@ -7090,8 +7239,8 @@ export default function App(){
                     if(tab.id==="pfeedback") markFeedbackRead();
                   }} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",padding:"10px 0 12px",background:"none",border:"none",cursor:"pointer",gap:3,color:parentTab===tab.id?C.terra:C.warm,position:"relative"}}>
                     {parentTab===tab.id&&<div style={{position:"absolute",top:0,left:"50%",transform:"translateX(-50%)",width:28,height:2,borderRadius:2,background:C.terra}}/>}
-                    <span style={{fontSize:18,lineHeight:1,position:"relative",display:"inline-block"}}>
-                      {tab.icon}
+                    <span style={{lineHeight:1,position:"relative",display:"inline-block"}}>
+                      <TablerIcon name={tab.icon} size={22} color={parentTab===tab.id?C.terra:C.warm}/>
                       {badge&&<span style={{position:"absolute",top:-2,right:-4,width:8,height:8,borderRadius:"50%",background:"#E53935",border:"1.5px solid #fff"}}/>}
                     </span>
                     <span style={{fontSize:9,fontWeight:parentTab===tab.id?700:400}}>{tab.label}</span>
