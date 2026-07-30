@@ -1,4 +1,3 @@
-import { isWithinFeeNoticeHours } from "./feeNotify.js";
 import {
   buildFeeReminderContent,
   buildUnpaidNoticeContent,
@@ -18,7 +17,6 @@ export async function dispatchAcademyFeeReminders({
   ref = new Date(),
 }) {
   if (!academy?.notifs?.paymentRemind) return;
-  if (!isWithinFeeNoticeHours(ref)) return;
   if (!addNotice) return;
 
   const monthKey = getCalendarMonthKey(ref);

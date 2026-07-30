@@ -79,6 +79,34 @@ async function main() {
   console.log("[SystemNotice] 등록 완료");
   console.log(`  제목: ${data.title}`);
   console.log(`  내용:\n${data.content.split("\n").map((l) => "    " + l).join("\n")}`);
+
+  // 전체 사용자(원장+학부모)에게 푸시 발송 — profiles.push_token은 RLS로 보호되므로 서비스 키로만 조회 가능
+  try {
+    const { data: rows, error: pushErr } = await sb
+      .from("profiles")
+      .select("push_token")
+      .not("push_token", "is", null);
+    if (pushErr) throw pushErr;
+    const tokens = [...new Set((rows ?? []).map((r) => r.push_token).filter(Boolean))];
+    if (!tokens.length) {
+      console.log("[SystemNotice] 푸시 대상 토큰 없음 - 알림 발송 생략");
+      return;
+    }
+    const res = await fetch(`${url}/functions/v1/push-notify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceKey}` },
+      body: JSON.stringify({
+        tokens,
+        title: args.important ? `📢 중요 공지: ${title}` : `📢 ${title}`,
+        body: "새로운 시스템 공지가 등록되었습니다. 앱에서 확인해 주세요.",
+        data: { type: "system_notice" },
+      }),
+    });
+    const result = await res.json();
+    console.log(`[SystemNotice] 푸시 발송 완료 (${tokens.length}명 대상)`, result.sent != null ? `sent=${result.sent}` : "");
+  } catch (e) {
+    console.error("WARNING: 푸시 발송 실패:", e.message);
+  }
 }
 
 main();

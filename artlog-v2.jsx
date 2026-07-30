@@ -17,11 +17,6 @@ import {
   dispatchFeedbackNotification,
 } from "./src/lib/feedbackNotify.js";
 import {
-  isWithinFeeNoticeHours,
-  msUntilNextFeeNoticeWindow,
-  feeNoticeWindowLabel,
-} from "./src/lib/feeNotify.js";
-import {
   DEFAULT_STUDENT_AVATAR_URL,
   genderLabel,
   getStudentAvatarSrc,
@@ -5559,7 +5554,7 @@ const SettingsPage=({onBack,initTab="academy",academy,onSaveAcademy,onNavigate,o
               {[
                 {key:"attendPush",   l:"출결 처리 알림", sub:"출결 처리 시 학부모에게 앱 알림 발송"},
                 {key:"feedbackPush", l:"피드백 알림",    sub:"피드백 발송 시 학부모에게 앱 알림"},
-                {key:"paymentRemind",l:"결제 예정 알림", sub:`납부 예정·미납 안내 (${feeNoticeWindowLabel()})`},
+                {key:"paymentRemind",l:"결제 예정 알림", sub:"납부 예정·미납 안내"},
                 {key:"noticePush",   l:"공지 알림",      sub:"공지 발송 시 학부모에게 앱 알림"},
               ].map((n,i,arr)=>(
                 <div key={n.key} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 16px",borderBottom:i<arr.length-1?`1px solid ${C.beige}`:"none"}}>
@@ -5737,7 +5732,7 @@ const ParentSettingsPage = ({
               {[
                 { key: "attendPush", l: "출결 알림", sub: "자녀 출결 처리 시 알림" },
                 { key: "feedbackPush", l: "피드백 알림", sub: "선생님 피드백 수신 시 알림" },
-                { key: "paymentRemind", l: "수강료 알림", sub: `납부 예정·미납 안내 (${feeNoticeWindowLabel()})` },
+                { key: "paymentRemind", l: "수강료 알림", sub: "납부 예정·미납 안내" },
                 { key: "noticePush", l: "공지 알림", sub: "학원 공지 발송 시 알림" },
               ].map((n, i, arr) => (
                 <div key={n.key} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", borderBottom: i < arr.length - 1 ? `1px solid ${C.beige}` : "none" }}>
@@ -6662,10 +6657,6 @@ export default function App(){
 
   const handleSendUnpaidReminder=useCallback(async(student)=>{
     if(!student||isPaidForMonth(student,getCalendarMonthKey()))return false;
-    if(!isWithinFeeNoticeHours()){
-      showAlert(`미납 알림은 ${feeNoticeWindowLabel()} 사이에 발송됩니다.`);
-      return false;
-    }
     const parent=linkedParents.find(p=>String(p.studentId)===String(student.id));
     if(!parent){
       showAlert(`${student.name} 학부모가 연결되지 않았습니다. 학부모 계정에서 초대해 주세요.`);
@@ -6688,8 +6679,6 @@ export default function App(){
     }
     return true;
   },[linkedParents, notices, noticeMut, academySafe]);
-
-  const adminFeeReminderTimerRef = useRef(null);
 
   // ── 모든 입력을 ref로 관리 ───────────────────────────────────
   // 이유: useCallback deps에 students/academySafe가 있으면
@@ -6714,7 +6703,6 @@ export default function App(){
   const dispatchAdminFeeReminders = useCallback(() => {
     if (modeRef.current !== "admin" || !studentsRef.current.length) return;
     if (!academySafeRef.current.notifs?.paymentRemind) return;
-    if (!isWithinFeeNoticeHours()) return;
     if (feeReminderRunningRef.current) return; // 이전 실행 중이면 건너뜀
 
     feeReminderRunningRef.current = true;
@@ -6742,28 +6730,9 @@ export default function App(){
 
   useEffect(() => {
     if (mode !== "admin") return;
-    if (adminFeeReminderTimerRef.current) {
-      clearTimeout(adminFeeReminderTimerRef.current);
-      adminFeeReminderTimerRef.current = null;
-    }
-    const run = () => {
-      if (isWithinFeeNoticeHours()) {
-        dispatchAdminFeeReminders();
-        return;
-      }
-      adminFeeReminderTimerRef.current = setTimeout(
-        () => dispatchAdminFeeReminders(),
-        msUntilNextFeeNoticeWindow()
-      );
-    };
-    run();
-    const interval = setInterval(() => {
-      if (isWithinFeeNoticeHours()) dispatchAdminFeeReminders();
-    }, 30 * 60 * 1000);
-    return () => {
-      if (adminFeeReminderTimerRef.current) clearTimeout(adminFeeReminderTimerRef.current);
-      clearInterval(interval);
-    };
+    dispatchAdminFeeReminders();
+    const interval = setInterval(() => dispatchAdminFeeReminders(), 30 * 60 * 1000);
+    return () => clearInterval(interval);
   }, [mode, dispatchAdminFeeReminders]); // dispatchAdminFeeReminders는 절대 바뀌지 않음
 
   const handleLogout = useCallback(async () => {
