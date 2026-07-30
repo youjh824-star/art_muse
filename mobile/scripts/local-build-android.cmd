@@ -125,12 +125,18 @@ set "RELEASE_APK_NAME=app-%VARIANT%.apk"
 set "RELEASE_TAG=latest-release"
 set "REPO=youjh824-star/art_muse"
 set "CURRENT_LABEL="
-set "RELEASE_VERSION=v1.0.1"
+set "RELEASE_VERSION=v1.0.0"
 
-rem Read current asset label and bump patch version (v1.0.x)
+rem SemVer bump type: set BUMP=major|minor|patch env var before calling this script.
+rem   major: X+1.0.0 (breaking/incompatible changes, major UI/UX overhaul)
+rem   minor: X.Y+1.0 (backward-compatible new feature)
+rem   patch: X.Y.Z+1 (bugfix/stabilization only) -- default
+if not defined BUMP set "BUMP=patch"
+
+rem Read current asset label and bump per SemVer (X.Y.Z)
 for /f "usebackq delims=" %%V in (`powershell -NoProfile -Command "$j=& '%GH_EXE%' release view %RELEASE_TAG% --repo %REPO% --json assets 2>$null | ConvertFrom-Json; $a=$j.assets | Where-Object { $_.name -eq '%RELEASE_APK_NAME%' } | Select-Object -First 1; if($a){$a.label}"`) do set "CURRENT_LABEL=%%V"
 if defined CURRENT_LABEL (
-  for /f "usebackq delims=" %%V in (`powershell -NoProfile -Command "$label='%CURRENT_LABEL%'; if($label -match 'v1\.0\.(\d+)'){ 'v1.0.' + ([int]$Matches[1] + 1) } else { 'v1.0.1' }"`) do set "RELEASE_VERSION=%%V"
+  for /f "usebackq delims=" %%V in (`powershell -NoProfile -Command "$label='%CURRENT_LABEL%'; $bump='%BUMP%'; if($label -match 'v(\d+)\.(\d+)\.(\d+)'){ $maj=[int]$Matches[1]; $min=[int]$Matches[2]; $pat=[int]$Matches[3]; switch($bump){ 'major'{$maj++;$min=0;$pat=0} 'minor'{$min++;$pat=0} default{$pat++} }; \"v$maj.$min.$pat\" } else { 'v1.0.1' }"`) do set "RELEASE_VERSION=%%V"
 )
 set "RELEASE_ASSET_LABEL=%RELEASE_VERSION%"
 echo [Release] %RELEASE_APK_NAME% label: %RELEASE_ASSET_LABEL%
