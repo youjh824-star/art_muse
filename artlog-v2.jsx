@@ -2062,6 +2062,8 @@ const ExamScoreManager = ({ student, academyId }) => {
   const [form, setForm] = useState({ exam_date:"", practical_scores:{}, suneung_score:"", naesin_grade:"", target_schools:"", memo:"" });
   const [saving, setSaving] = useState(false);
 
+  const [academyAvgSuneung, setAcademyAvgSuneung] = useState(null);
+
   useEffect(() => {
     if (!academyId || !student?.id) return;
     let sb; try { sb = requireSupabase(); } catch { return; }
@@ -2069,6 +2071,20 @@ const ExamScoreManager = ({ student, academyId }) => {
       .order("exam_date", { ascending: false })
       .then(({ data }) => { if (data) setScores(data); });
   }, [academyId, student?.id, saving]);
+
+  useEffect(() => {
+    if (!academyId) return;
+    let sb; try { sb = requireSupabase(); } catch { return; }
+    sb.from("exam_scores").select("student_id,suneung_score,exam_date").eq("academy_id", academyId).not("suneung_score","is",null)
+      .order("exam_date", { ascending: false })
+      .then(({ data }) => {
+        if (!data?.length) { setAcademyAvgSuneung(null); return; }
+        const latestByStudent = new Map();
+        for (const row of data) if (!latestByStudent.has(row.student_id)) latestByStudent.set(row.student_id, row.suneung_score);
+        const vals = [...latestByStudent.values()];
+        setAcademyAvgSuneung(vals.length ? Math.round(vals.reduce((a,v)=>a+v,0)/vals.length) : null);
+      });
+  }, [academyId, saving]);
 
   const handleSave = async () => {
     if (!form.exam_date) { showAlert("시험 날짜를 입력하세요"); return; }
@@ -2138,6 +2154,37 @@ const ExamScoreManager = ({ student, academyId }) => {
     );
   };
 
+  const ascScores = useMemo(()=>[...scores].sort((a,b)=>a.exam_date.localeCompare(b.exam_date)), [scores]);
+
+  const TrendChart = ({data, valueKey, label, color, invert=false, unit=""}) => {
+    const pts = data.filter(d=>d[valueKey]!=null);
+    if(pts.length<2) return null;
+    const w=280, h=100, padX=8, padY=14;
+    const vals = pts.map(p=>p[valueKey]);
+    let min=Math.min(...vals), max=Math.max(...vals);
+    if(min===max){min-=1;max+=1;}
+    const yFor = v => invert
+      ? padY + ((v-min)/(max-min))*(h-padY*2)
+      : h-padY - ((v-min)/(max-min))*(h-padY*2);
+    const xFor = i => padX + (i/(pts.length-1))*(w-padX*2);
+    const linePts = pts.map((p,i)=>`${xFor(i)},${yFor(p[valueKey])}`).join(" ");
+    return (
+      <div style={{marginBottom:14}}>
+        <div style={{fontSize:11,color:C.warm,fontWeight:600,marginBottom:4}}>{label} 추이</div>
+        <svg width={w} height={h} style={{display:"block"}}>
+          <polyline points={linePts} fill="none" stroke={color} strokeWidth={2}/>
+          {pts.map((p,i)=>(
+            <g key={i}>
+              <circle cx={xFor(i)} cy={yFor(p[valueKey])} r={3} fill={color}/>
+              <text x={xFor(i)} y={yFor(p[valueKey])-8} textAnchor="middle" fontSize={9} fill={C.charcoal}>{p[valueKey]}{unit}</text>
+              <text x={xFor(i)} y={h-2} textAnchor="middle" fontSize={8} fill={C.light}>{p.exam_date.slice(5)}</text>
+            </g>
+          ))}
+        </svg>
+      </div>
+    );
+  };
+
   return (
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
       {latest && (
@@ -2152,6 +2199,18 @@ const ExamScoreManager = ({ student, academyId }) => {
               </div>
             ))}
           </div>
+        </Card>
+      )}
+      {ascScores.length>=2 && (
+        <Card>
+          <div style={{fontSize:12,color:C.warm,marginBottom:4,fontWeight:600}}>성적 추이 ({ascScores.length}회)</div>
+          <TrendChart data={ascScores} valueKey="suneung_score" label="수능 점수" color={C.blue}/>
+          <TrendChart data={ascScores} valueKey="naesin_grade" label="내신 등급 (낮을수록 우수)" color={C.sage} invert unit="등급"/>
+          {academyAvgSuneung!=null && latest?.suneung_score!=null && (
+            <div style={{fontSize:11,color:C.warm,textAlign:"center",marginTop:2}}>
+              학원 전체 평균 수능 {academyAvgSuneung}점 대비 {latest.suneung_score>=academyAvgSuneung?<span style={{color:C.sage,fontWeight:700}}>+{latest.suneung_score-academyAvgSuneung}점</span>:<span style={{color:C.red,fontWeight:700}}>{latest.suneung_score-academyAvgSuneung}점</span>}
+            </div>
+          )}
         </Card>
       )}
       <button onClick={()=>setShowForm(!showForm)} style={{padding:"10px 0",borderRadius:12,background:C.terra,color:"white",border:"none",fontSize:13,fontWeight:700,cursor:"pointer"}}>
@@ -2224,12 +2283,26 @@ const ExamScoreManager = ({ student, academyId }) => {
 };
 
 // ─── ConsultationDiary ─────────────────────────────────────────
+const CONSULT_TYPES = ["정기","긴급","학부모요청","기타"];
+const CONSULT_ATTENDEES = ["학생 단독","학부모 동석","학부모 단독"];
+const CONSULT_TAGS = ["성적","학습태도","진로·입시","교우관계","출결","건강","기타"];
+const CONSULT_TAG_COLOR = { "성적":"terra", "학습태도":"gold", "진로·입시":"blue", "교우관계":"green", "출결":"purple", "건강":"red", "기타":"beige" };
+
+const emptyConsultForm = () => ({
+  consult_date:"", counselor:"", consult_type:"정기", attendees:"학생 단독",
+  tags:[], content:"", reaction:"", follow_up:"", next_consult_date:"",
+  attach_snapshot:false,
+});
+
 const ConsultationDiary = ({ student, academyId }) => {
   const [consultations, setConsultations] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ consult_date:"", content:"" });
+  const [form, setForm] = useState(emptyConsultForm());
   const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
+  const [filterTag, setFilterTag] = useState(null);
+  const [latestExamScore, setLatestExamScore] = useState(null);
 
   const load = useCallback(async () => {
     if (!academyId || !student?.id) return;
@@ -2242,18 +2315,47 @@ const ConsultationDiary = ({ student, academyId }) => {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    if (!academyId || !student?.id) return;
+    let sb; try { sb = requireSupabase(); } catch { return; }
+    sb.from("exam_scores").select("*").eq("academy_id", academyId).eq("student_id", student.id)
+      .order("exam_date", { ascending: false }).limit(1)
+      .then(({ data }) => setLatestExamScore(data?.[0] ?? null));
+  }, [academyId, student?.id]);
+
+  const toggleTag = (t) => {
+    setForm(f => ({ ...f, tags: f.tags.includes(t) ? f.tags.filter(x=>x!==t) : [...f.tags, t] }));
+  };
+
   const handleSave = async () => {
-    if (!form.consult_date || !form.content.trim()) { showAlert("날짜와 내용을 입력하세요"); return; }
+    if (!form.consult_date || !form.content.trim()) { showAlert("날짜와 상담 내용을 입력하세요"); return; }
     setSaving(true);
     try {
       const sb = requireSupabase();
+      const row = {
+        consult_date: form.consult_date,
+        counselor: form.counselor || null,
+        consult_type: form.consult_type,
+        attendees: form.attendees,
+        tags: form.tags,
+        content: form.content,
+        reaction: form.reaction || null,
+        follow_up: form.follow_up || null,
+        next_consult_date: form.next_consult_date || null,
+        exam_snapshot: form.attach_snapshot && latestExamScore ? {
+          exam_date: latestExamScore.exam_date,
+          practical_scores: latestExamScore.practical_scores,
+          suneung_score: latestExamScore.suneung_score,
+          naesin_grade: latestExamScore.naesin_grade,
+        } : null,
+      };
       if (editId) {
-        await sb.from("consultations").update({ consult_date:form.consult_date, content:form.content }).eq("id", editId);
+        await sb.from("consultations").update(row).eq("id", editId);
       } else {
-        await sb.from("consultations").insert({ academy_id:academyId, student_id:student.id, consult_date:form.consult_date, content:form.content });
+        await sb.from("consultations").insert({ academy_id:academyId, student_id:student.id, ...row });
       }
       setShowForm(false); setEditId(null);
-      setForm({ consult_date:"", content:"" });
+      setForm(emptyConsultForm());
       await load();
     } catch(e) { showAlert("저장 실패: " + e.message); }
     setSaving(false);
@@ -2267,10 +2369,23 @@ const ConsultationDiary = ({ student, academyId }) => {
     } catch(e) { showAlert("삭제 실패: " + e.message); }
   };
   const startEdit = (c) => {
-    setForm({ consult_date:c.consult_date, content:c.content });
+    setForm({
+      consult_date:c.consult_date, counselor:c.counselor||"", consult_type:c.consult_type||"정기",
+      attendees:c.attendees||"학생 단독", tags:c.tags||[], content:c.content,
+      reaction:c.reaction||"", follow_up:c.follow_up||"", next_consult_date:c.next_consult_date||"",
+      attach_snapshot:false,
+    });
     setEditId(c.id);
     setShowForm(true);
+    setExpandedId(null);
   };
+
+  const visibleConsultations = filterTag ? consultations.filter(c => (c.tags||[]).includes(filterTag)) : consultations;
+
+  const Field = ({label, children}) => (
+    <div><div style={{fontSize:11,color:C.warm,marginBottom:2}}>{label}</div>{children}</div>
+  );
+  const selectStyle = {width:"100%",padding:"8px 10px",border:`1px solid ${C.light}`,borderRadius:8,fontSize:13,color:C.charcoal,outline:"none",background:C.white};
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:12}}>
@@ -2278,44 +2393,137 @@ const ConsultationDiary = ({ student, academyId }) => {
         <span style={{fontSize:14}}>🔒</span>
         <span style={{fontSize:12,color:C.warm}}>비공개 상담 일지 — 원장님만 볼 수 있습니다</span>
       </div>
-      <button onClick={()=>{setShowForm(!showForm);setEditId(null);setForm({consult_date:"",content:""});}} style={{padding:"10px 0",borderRadius:12,background:C.terra,color:"white",border:"none",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+      <button onClick={()=>{setShowForm(!showForm);setEditId(null);setForm(emptyConsultForm());}} style={{padding:"10px 0",borderRadius:12,background:C.terra,color:"white",border:"none",fontSize:13,fontWeight:700,cursor:"pointer"}}>
         {showForm&&!editId?"취소":"+ 상담 일지 작성"}
       </button>
       {showForm && (
         <Card>
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            <div><div style={{fontSize:11,color:C.warm,marginBottom:2}}>상담 날짜</div>
-              <input type="date" value={form.consult_date} onChange={e=>setForm(f=>({...f,consult_date:e.target.value}))}
-                style={{width:"100%",padding:"8px 10px",border:`1px solid ${C.light}`,borderRadius:8,fontSize:13,color:C.charcoal,outline:"none"}}/>
+            <div style={{display:"flex",gap:8}}>
+              <div style={{flex:1}}><Field label="상담 날짜">
+                <input type="date" value={form.consult_date} onChange={e=>setForm(f=>({...f,consult_date:e.target.value}))} style={selectStyle}/>
+              </Field></div>
+              <div style={{flex:1}}><Field label="상담자">
+                <input value={form.counselor} onChange={e=>setForm(f=>({...f,counselor:e.target.value}))} placeholder="예: 김원장" style={selectStyle}/>
+              </Field></div>
             </div>
-            <div><div style={{fontSize:11,color:C.warm,marginBottom:2}}>상담 내용</div>
-              <textarea value={form.content} onChange={e=>setForm(f=>({...f,content:e.target.value}))} rows={5} placeholder="상담 내용을 기록하세요..."
+            <div style={{display:"flex",gap:8}}>
+              <div style={{flex:1}}><Field label="상담 유형">
+                <select value={form.consult_type} onChange={e=>setForm(f=>({...f,consult_type:e.target.value}))} style={selectStyle}>
+                  {CONSULT_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+                </select>
+              </Field></div>
+              <div style={{flex:1}}><Field label="상담 대상">
+                <select value={form.attendees} onChange={e=>setForm(f=>({...f,attendees:e.target.value}))} style={selectStyle}>
+                  {CONSULT_ATTENDEES.map(t=><option key={t} value={t}>{t}</option>)}
+                </select>
+              </Field></div>
+            </div>
+            <Field label="분류 태그 (중복 선택 가능)">
+              <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                {CONSULT_TAGS.map(t=>{
+                  const on = form.tags.includes(t);
+                  return (
+                    <button key={t} type="button" onClick={()=>toggleTag(t)} style={{padding:"6px 12px",borderRadius:20,border:`1px solid ${on?C.terra:C.light}`,background:on?"#FFF0E6":C.white,color:on?C.terra:C.warm,fontSize:12,fontWeight:on?700:400,cursor:"pointer"}}>
+                      {t}
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
+            <Field label="상담 내용 — 무엇을 논의했는지">
+              <textarea value={form.content} onChange={e=>setForm(f=>({...f,content:e.target.value}))} rows={4} placeholder="상담 내용을 기록하세요..."
                 style={{width:"100%",padding:"10px 12px",border:`1px solid ${C.light}`,borderRadius:8,fontSize:13,color:C.charcoal,outline:"none",resize:"none",lineHeight:1.6,fontFamily:"inherit"}}/>
+            </Field>
+            <Field label="학생 반응 — 한 줄 요약">
+              <input value={form.reaction} onChange={e=>setForm(f=>({...f,reaction:e.target.value}))} placeholder="예: 성적 하락에 위축된 모습, 개선 의지는 있음" style={selectStyle}/>
+            </Field>
+            <Field label="후속 조치 — 다음 액션">
+              <input value={form.follow_up} onChange={e=>setForm(f=>({...f,follow_up:e.target.value}))} placeholder="예: 다음 모의고사 결과 확인 후 재상담" style={selectStyle}/>
+            </Field>
+            <div style={{display:"flex",gap:8}}>
+              <div style={{flex:1}}><Field label="다음 상담 예정일 (선택)">
+                <input type="date" value={form.next_consult_date} onChange={e=>setForm(f=>({...f,next_consult_date:e.target.value}))} style={selectStyle}/>
+              </Field></div>
             </div>
+            {latestExamScore && (
+              <div onClick={()=>setForm(f=>({...f,attach_snapshot:!f.attach_snapshot}))} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+                <div style={{width:18,height:18,borderRadius:5,background:form.attach_snapshot?C.terra:C.beige,border:`2px solid ${form.attach_snapshot?C.terra:C.light}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{form.attach_snapshot&&<span style={{fontSize:11,color:"white"}}>✓</span>}</div>
+                <span style={{fontSize:12,color:C.charcoal}}>최근 성적 스냅샷 첨부 ({latestExamScore.exam_date})</span>
+              </div>
+            )}
             <button onClick={handleSave} disabled={saving} style={{padding:"10px 0",borderRadius:10,background:C.terra,color:"white",border:"none",fontSize:13,fontWeight:700,cursor:"pointer"}}>
               {saving?"저장 중...":(editId?"수정 저장":"저장")}
             </button>
           </div>
         </Card>
       )}
-      {consultations.length === 0 && !showForm && (
+
+      {consultations.length>0 && (
+        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+          <button onClick={()=>setFilterTag(null)} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${!filterTag?C.terra:C.light}`,background:!filterTag?C.terra:C.white,color:!filterTag?"white":C.warm,fontSize:11,fontWeight:600,cursor:"pointer"}}>전체</button>
+          {CONSULT_TAGS.filter(t=>consultations.some(c=>(c.tags||[]).includes(t))).map(t=>(
+            <button key={t} onClick={()=>setFilterTag(t)} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${filterTag===t?C.terra:C.light}`,background:filterTag===t?C.terra:C.white,color:filterTag===t?"white":C.warm,fontSize:11,fontWeight:600,cursor:"pointer"}}>{t}</button>
+          ))}
+        </div>
+      )}
+
+      {visibleConsultations.length === 0 && !showForm && (
         <div style={{textAlign:"center",padding:"30px 0",color:C.warm,fontSize:13}}>아직 상담 일지가 없습니다</div>
       )}
-      {consultations.map(c=>(
-        <Card key={c.id} style={{borderLeft:`3px solid ${C.terra}`}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
-            <div style={{display:"flex",alignItems:"center",gap:6}}>
-              <span style={{fontSize:11}}>🔒</span>
-              <span style={{fontSize:13,fontWeight:700,color:C.charcoal}}>{c.consult_date}</span>
+      {visibleConsultations.map(c=>{
+        const isOpen = expandedId === c.id;
+        return (
+        <Card key={c.id} style={{borderLeft:`3px solid ${C.terra}`,padding:0,overflow:"hidden"}}>
+          <div onClick={()=>setExpandedId(isOpen?null:c.id)} style={{padding:"14px 16px",cursor:"pointer"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                <span style={{fontSize:11}}>🔒</span>
+                <span style={{fontSize:13,fontWeight:700,color:C.charcoal}}>{c.consult_date}</span>
+                {c.consult_type&&<Badge color="blue" small>{c.consult_type}</Badge>}
+                {(c.tags||[]).map(t=><Badge key={t} color={CONSULT_TAG_COLOR[t]||"gold"} small>{t}</Badge>)}
+              </div>
+              <span style={{fontSize:14,color:C.light,flexShrink:0,marginLeft:8}}>{isOpen?"▲":"▼"}</span>
             </div>
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>startEdit(c)} style={{background:"none",border:"none",color:C.warm,cursor:"pointer",fontSize:12}}>수정</button>
-              <button onClick={()=>handleDelete(c.id)} style={{background:"none",border:"none",color:C.red,cursor:"pointer",fontSize:12}}>삭제</button>
-            </div>
+            {!isOpen&&<div style={{fontSize:12,color:C.warm,marginTop:6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.content}</div>}
           </div>
-          <div style={{fontSize:13,color:C.charcoal,lineHeight:1.7,whiteSpace:"pre-wrap"}}>{c.content}</div>
+          {isOpen && (
+            <div style={{padding:"0 16px 16px",display:"flex",flexDirection:"column",gap:10}}>
+              <div style={{display:"flex",gap:14,flexWrap:"wrap",fontSize:11,color:C.warm}}>
+                {c.counselor&&<span>상담자 <b style={{color:C.charcoal}}>{c.counselor}</b></span>}
+                {c.attendees&&<span>대상 <b style={{color:C.charcoal}}>{c.attendees}</b></span>}
+              </div>
+              <div>
+                <div style={{fontSize:11,color:C.warm,marginBottom:3,fontWeight:600}}>상담 내용</div>
+                <div style={{fontSize:13,color:C.charcoal,lineHeight:1.7,whiteSpace:"pre-wrap"}}>{c.content}</div>
+              </div>
+              {c.reaction&&(
+                <div>
+                  <div style={{fontSize:11,color:C.warm,marginBottom:3,fontWeight:600}}>학생 반응</div>
+                  <div style={{fontSize:13,color:C.charcoal,lineHeight:1.6}}>{c.reaction}</div>
+                </div>
+              )}
+              {c.follow_up&&(
+                <div>
+                  <div style={{fontSize:11,color:C.warm,marginBottom:3,fontWeight:600}}>후속 조치</div>
+                  <div style={{fontSize:13,color:C.charcoal,lineHeight:1.6}}>{c.follow_up}</div>
+                </div>
+              )}
+              {c.next_consult_date&&<div style={{fontSize:12,color:C.terra,fontWeight:600}}>📅 다음 상담 예정일: {c.next_consult_date}</div>}
+              {c.exam_snapshot&&(
+                <div style={{background:C.cream,borderRadius:8,padding:"8px 10px",fontSize:11,color:C.warm}}>
+                  📊 첨부된 성적 스냅샷 ({c.exam_snapshot.exam_date}) — 수능 {c.exam_snapshot.suneung_score??"-"} · 내신 {c.exam_snapshot.naesin_grade??"-"}
+                </div>
+              )}
+              <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+                <button onClick={(e)=>{e.stopPropagation();startEdit(c);}} style={{background:"none",border:"none",color:C.warm,cursor:"pointer",fontSize:12}}>수정</button>
+                <button onClick={(e)=>{e.stopPropagation();handleDelete(c.id);}} style={{background:"none",border:"none",color:C.red,cursor:"pointer",fontSize:12}}>삭제</button>
+              </div>
+            </div>
+          )}
         </Card>
-      ))}
+        );
+      })}
     </div>
   );
 };

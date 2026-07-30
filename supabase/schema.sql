@@ -677,3 +677,15 @@ create policy system_notices_dev_write on system_notices
 do $$ begin
   alter publication supabase_realtime add table system_notices;
 exception when duplicate_object then null; end $$;
+
+-- 상담 일지 구조화: 상담자/유형/대상/태그/학생반응/후속조치/다음상담일/성적스냅샷
+alter table consultations
+  add column if not exists counselor         text,
+  add column if not exists consult_type      text not null default '정기',
+  add column if not exists attendees         text not null default '학생 단독',
+  add column if not exists tags              text[] not null default '{}',
+  add column if not exists reaction          text,
+  add column if not exists follow_up         text,
+  add column if not exists next_consult_date date,
+  add column if not exists exam_snapshot     jsonb;
+create index if not exists idx_consultations_tags on consultations using gin(tags);
