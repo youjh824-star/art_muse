@@ -669,10 +669,10 @@ drop policy if exists system_notices_dev_write on system_notices;
 create policy system_notices_dev_write on system_notices
   for all to authenticated
   using (
-    (select email from auth.users where id = auth.uid()) = 'youps712@gmail.com'
+    (select email from auth.users where id = auth.uid()) = 'admin@artmuse.kr'
   )
   with check (
-    (select email from auth.users where id = auth.uid()) = 'youps712@gmail.com'
+    (select email from auth.users where id = auth.uid()) = 'admin@artmuse.kr'
   );
 do $$ begin
   alter publication supabase_realtime add table system_notices;

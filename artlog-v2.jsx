@@ -1424,7 +1424,7 @@ const FeedbackMessageRow=({feedback:f,showStudent=false,onOpen,onEdit,onDelete,e
 };
 
 // ─── DEV ACCOUNT ──────────────────────────────────────────
-const DEV_EMAIL = "youps712@gmail.com";
+const DEV_EMAIL = "admin@artmuse.kr";
 
 // ─── TABS ──────────────────────────────────────────────────
 const TABLER_PATHS={
