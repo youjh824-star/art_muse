@@ -1189,7 +1189,7 @@ const BottomSheet=({open,onClose,children,title,fullHeight})=>{
   const h=fullHeight?"88vh":"auto";
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:200}} onClick={onClose}>
-      <div onClick={e=>e.stopPropagation()} style={{background:C.white,borderRadius:"20px 20px 0 0",padding:"24px 20px 0",width:"100%",maxWidth:430,animation:"slideUp .25s ease",maxHeight:"88vh",height:h,overflowY:fullHeight?"hidden":"auto",display:"flex",flexDirection:"column"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.white,borderRadius:"20px 20px 0 0",padding:"24px 20px calc(20px + env(safe-area-inset-bottom, 0px))",width:"100%",maxWidth:430,animation:"slideUp .25s ease",maxHeight:"88vh",height:h,overflowY:fullHeight?"hidden":"auto",display:"flex",flexDirection:"column"}}>
         <div style={{width:40,height:4,background:C.light,borderRadius:2,margin:"0 auto 16px",flexShrink:0}}/>
         {title&&<div style={{fontSize:16,fontWeight:700,color:C.charcoal,marginBottom:16,flexShrink:0}}>{title}</div>}
         <div style={{flex:fullHeight?1:"none",overflowY:fullHeight?"hidden":"visible",display:"flex",flexDirection:"column",paddingBottom:fullHeight?0:40}}>
