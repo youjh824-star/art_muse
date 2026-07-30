@@ -8,6 +8,7 @@ import { requireSupabase } from "./src/lib/supabase.js";
 import { useArtlogAppState, subscribeQueue } from "./src/hooks/useArtlogAppState.js";
 import { useMessages, useMessageMutations, useLatestMessagesByStudent, useUnreadCountByStudent } from "./src/hooks/useMessages.js";
 import { useAttendanceMutations } from "./src/hooks/useAttendance.js";
+import { useSystemNotices, useSystemNoticeMutations } from "./src/hooks/useSystemNotices.js";
 import { groupLinkedParentsByAccount, sortFeedbacksRecentFirst } from "./src/lib/mappers.js";
 import {
   defaultNotifyDateTime,
@@ -1421,6 +1422,9 @@ const FeedbackMessageRow=({feedback:f,showStudent=false,onOpen,onEdit,onDelete,e
     </Card>
   );
 };
+
+// ─── DEV ACCOUNT ──────────────────────────────────────────
+const DEV_EMAIL = "youps712@gmail.com";
 
 // ─── TABS ──────────────────────────────────────────────────
 const TABLER_PATHS={
@@ -4194,6 +4198,112 @@ const AdminAttendanceTab=({students,attendanceRecords,academyId,classTimes})=>{
   );
 };
 
+// ── 시스템 공지 ───────────────────────────────────────────────
+const SystemNoticeManager=({userEmail})=>{
+  const isDev=userEmail===DEV_EMAIL;
+  const{data:notices=[],isLoading}=useSystemNotices();
+  const{addNotice,updateNotice,deleteNotice}=useSystemNoticeMutations();
+  const[showForm,setShowForm]=useState(false);
+  const[editId,setEditId]=useState(null);
+  const[title,setTitle]=useState("");
+  const[content,setContent]=useState("");
+  const[important,setImportant]=useState(false);
+  const[selNotice,setSelNotice]=useState(null);
+
+  const openForm=(n=null)=>{
+    if(n){setEditId(n.id);setTitle(n.title);setContent(n.content);setImportant(n.important);}
+    else{setEditId(null);setTitle("");setContent("");setImportant(false);}
+    setShowForm(true);
+  };
+
+  const save=async()=>{
+    if(!title.trim())return;
+    try{
+      if(editId) await updateNotice.mutateAsync({id:editId,title,content,important});
+      else await addNotice.mutateAsync({title,content,important});
+      setShowForm(false);
+    }catch(e){showAlert(e?.message||"저장에 실패했습니다.");}
+  };
+
+  const del=async(id)=>{
+    if(!window.confirm("이 공지를 삭제할까요?"))return;
+    try{await deleteNotice.mutateAsync(id);}catch(e){showAlert(e?.message||"삭제에 실패했습니다.");}
+  };
+
+  return(
+    <div style={{padding:"0 16px 16px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"16px 0"}}>
+        <div style={{fontSize:18,fontWeight:800,color:C.charcoal}}>시스템 공지</div>
+        {isDev&&<button onClick={()=>openForm()} style={{background:C.terra,color:"white",border:"none",borderRadius:20,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ 작성</button>}
+      </div>
+      {!isDev&&(
+        <div style={{background:C.beige,borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:12,color:C.warm}}>
+          앱 업데이트 및 서비스 안내를 확인하세요.
+        </div>
+      )}
+      {isLoading?(
+        <div style={{textAlign:"center",padding:"40px 0",color:C.warm,fontSize:13}}>불러오는 중…</div>
+      ):notices.length===0?(
+        <Card style={{textAlign:"center",padding:"40px 0",color:C.warm,fontSize:13}}>등록된 공지가 없습니다</Card>
+      ):(
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {notices.map(n=>(
+            <Card key={n.id} onClick={()=>setSelNotice(n)} style={{borderLeft:`3px solid ${n.important?C.red:C.terra}`,cursor:"pointer"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+                <div style={{display:"flex",alignItems:"center",gap:6,flex:1,minWidth:0}}>
+                  {n.important&&<Badge color="red" small>중요</Badge>}
+                  <div style={{fontSize:14,fontWeight:700,color:C.charcoal,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.title}</div>
+                </div>
+                {isDev&&(
+                  <div style={{display:"flex",gap:6,flexShrink:0,marginLeft:8}} onClick={e=>e.stopPropagation()}>
+                    <button onClick={()=>openForm(n)} style={{padding:"3px 10px",borderRadius:8,background:C.beige,border:"none",fontSize:11,fontWeight:600,cursor:"pointer",color:C.charcoal}}>수정</button>
+                    <button onClick={()=>del(n.id)} style={{padding:"3px 10px",borderRadius:8,background:"#FDEAEA",border:"none",fontSize:11,fontWeight:600,cursor:"pointer",color:C.red}}>삭제</button>
+                  </div>
+                )}
+              </div>
+              <div style={{fontSize:12,color:C.warm,marginBottom:6}}>{n.date}</div>
+              <div style={{fontSize:12,color:C.charcoal,lineHeight:1.6,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{n.content}</div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* 상세 보기 */}
+      <BottomSheet open={!!selNotice} onClose={()=>setSelNotice(null)} title="시스템 공지">
+        {selNotice&&(
+          <div>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+              {selNotice.important&&<Badge color="red" small>중요</Badge>}
+              <div style={{fontSize:15,fontWeight:700,color:C.charcoal}}>{selNotice.title}</div>
+            </div>
+            <div style={{fontSize:12,color:C.warm,marginBottom:16}}>{selNotice.date}</div>
+            <div style={{fontSize:14,color:C.charcoal,lineHeight:1.9,whiteSpace:"pre-wrap"}}>{selNotice.content}</div>
+          </div>
+        )}
+      </BottomSheet>
+
+      {/* 작성/수정 폼 (개발자 전용) */}
+      {isDev&&(
+        <BottomSheet open={showForm} onClose={()=>setShowForm(false)} title={editId?"공지 수정":"시스템 공지 작성"}>
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:12,color:C.warm,marginBottom:4}}>제목</div>
+            <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="공지 제목" style={{width:"100%",padding:"10px 14px",border:`1px solid ${C.light}`,borderRadius:10,fontSize:14,outline:"none",background:C.cream,color:C.charcoal}}/>
+          </div>
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:12,color:C.warm,marginBottom:4}}>내용</div>
+            <textarea value={content} onChange={e=>setContent(e.target.value)} rows={5} placeholder="공지 내용" style={{width:"100%",padding:"10px 14px",border:`1px solid ${C.light}`,borderRadius:10,fontSize:14,outline:"none",background:C.cream,color:C.charcoal,resize:"none",fontFamily:"inherit"}}/>
+          </div>
+          <div onClick={()=>setImportant(v=>!v)} style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,cursor:"pointer"}}>
+            <div style={{width:20,height:20,borderRadius:6,background:important?C.red:C.beige,border:`2px solid ${important?C.red:C.light}`,display:"flex",alignItems:"center",justifyContent:"center"}}>{important&&<span style={{fontSize:12,color:"white"}}>✓</span>}</div>
+            <span style={{fontSize:13,color:C.charcoal}}>중요 공지로 표시</span>
+          </div>
+          <button onClick={save} disabled={addNotice.isPending||updateNotice.isPending} style={{width:"100%",padding:14,borderRadius:12,background:C.terra,color:"white",border:"none",fontSize:14,fontWeight:700,cursor:"pointer"}}>{editId?"수정 저장":"전체 발송"}</button>
+        </BottomSheet>
+      )}
+    </div>
+  );
+};
+
 const AdminMore=({students,onNavigate,academy,logoSrc})=>{
   const appVersion = useAppVersionLabel();
   return (
@@ -4221,6 +4331,7 @@ const AdminMore=({students,onNavigate,academy,logoSrc})=>{
           {icon:"building",   label:"학원 정보",       sub:"학원명·연락처",            page:"settings"},
           {icon:"bell",       label:"알림 설정",       sub:"앱 푸시 알림",             page:"settings_notif"},
           {icon:"user",       label:"계정 설정",       sub:"프로필·비밀번호",          page:"settings_account"},
+          {icon:"speakerphone",label:"시스템 공지",    sub:"앱 업데이트·서비스 안내",  page:"system_notice"},
         ].map((item,i,arr)=>(
           <div key={item.label} onClick={()=>item.page&&onNavigate(item.page)} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 16px",borderBottom:i<arr.length-1?`1px solid ${C.beige}`:"none",cursor:item.page?"pointer":"default",opacity:item.page?1:0.55}}>
             <div style={{width:44,height:44,borderRadius:12,background:C.cream,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
@@ -4564,9 +4675,10 @@ const ParentMoreTab=({onTab})=>(
   <div style={{padding:"16px"}}>
     <div style={{fontSize:18,fontWeight:800,color:C.charcoal,padding:"8px 0 16px"}}>더보기</div>
     {[
-      {icon:"photo",   label:"작품",sub:"그림·작품 갤러리",tab:"partworks"},
-      {icon:"calendar",label:"일정",sub:"출결 및 수업 일정",tab:"pschedule"},
-      {icon:"settings",label:"설정",sub:"알림·계정 설정",tab:"psettings"},
+      {icon:"photo",        label:"작품",     sub:"그림·작품 갤러리",          tab:"partworks"},
+      {icon:"calendar",     label:"일정",     sub:"출결 및 수업 일정",          tab:"pschedule"},
+      {icon:"speakerphone", label:"시스템 공지",sub:"앱 업데이트·서비스 안내",  tab:"psystem_notice"},
+      {icon:"settings",     label:"설정",     sub:"알림·계정 설정",             tab:"psettings"},
     ].map(item=>(
       <Card key={item.tab} onClick={()=>onTab(item.tab)} style={{display:"flex",alignItems:"center",gap:14,marginBottom:10,cursor:"pointer"}}>
         <div style={{width:40,height:40,borderRadius:12,background:C.cream,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
@@ -7077,6 +7189,14 @@ export default function App(){
       />
     );
     if(subPage==="offline_queue")    return <OfflineQueuePage    onBack={()=>setSubPage(null)} online={online} queueLen={queueLen} onGoOnline={goOnline}/>;
+    if(subPage==="system_notice") return (
+      <>
+        <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 16px 0"}}>
+          <button onClick={()=>setSubPage(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.warm}}>←</button>
+        </div>
+        <SystemNoticeManager userEmail={auth.user?.email}/>
+      </>
+    );
     switch(adminTab){
       case"home":     return <AdminHome students={students} schedules={schedules} notices={notices} feedbacks={feedbacks} onNavigate={handleAdminNav} logoSrc={logoSrc} isNativeApp={isNativeApp} onExitApp={handleExitApp} plan={plan} isMaster={isMaster}/>;
       case"students": return <AdminStudents students={students} onSelect={setSelStudent} onUpdateStudent={onUpdateStudent} onAddStudent={onAddStudent} onDeleteStudent={onDeleteStudent} linkedStudentIds={linkedStudentIds} academyOptions={academyOptionsSafe} onUpdateAcademyOptions={handleUpdateAcademyOptions} attendanceRecords={attendanceRecords} academy={academySafe}/>;
@@ -7154,6 +7274,15 @@ export default function App(){
       case"pnotice":   return <>{parentHeader}<NoticeManager isParent notices={parentNotices} onBack={()=>setParentTab("phome")} onAddNotice={()=>{}} onUpdateNotice={()=>{}} onDeleteNotice={()=>{}}/></>;
       case"pchat":     return <>{parentHeader}<ParentChatPage key={parentChild.id} student={parentChild} academyId={academyId} userId={auth.user?.id}/></>;
       case"pmore":     return <>{parentHeader}<ParentMoreTab onTab={setParentTab}/></>;
+      case"psystem_notice": return (
+        <>
+          {parentHeader}
+          <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 16px 0"}}>
+            <button onClick={()=>setParentTab("pmore")} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.warm}}>←</button>
+          </div>
+          <SystemNoticeManager userEmail={auth.user?.email}/>
+        </>
+      );
       case"partworks": return <>{parentHeader}<ParentArtworks key={parentChild.id} student={parentChild} artworks={artworks} academy={academySafe} feedbacks={feedbacks} onUpload={()=>setParentUploadOpen(true)}/></>;
       case"pschedule": return <>{parentHeader}<ParentScheduleCalendar key={parentChild.id} student={parentChild} schedules={schedules} attendanceRecords={attendanceRecords}/></>;
       default:         return <>{parentHeader}<ParentHome key={parentChild.id} student={parentChild} feedbacks={feedbacks} artworks={artworks} notices={parentNotices} attendanceRecords={attendanceRecords} schedules={schedules} onTab={setParentTab}/></>;

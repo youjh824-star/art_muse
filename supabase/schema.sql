@@ -651,3 +651,29 @@ where fee_paid_month is not null
 update students
 set fee_paid_month = to_char(current_date, 'YYYY-MM')
 where fee_status = '납부완료' and fee_paid_month is null;
+
+-- 시스템 공지 (개발자 전용 작성, 전체 사용자 읽기)
+create table if not exists system_notices (
+  id         uuid primary key default gen_random_uuid(),
+  title      text not null,
+  content    text not null,
+  important  boolean not null default false,
+  posted_at  timestamptz not null default now(),
+  posted_by  uuid references auth.users(id) on delete set null
+);
+alter table system_notices enable row level security;
+drop policy if exists system_notices_read on system_notices;
+create policy system_notices_read on system_notices
+  for select to authenticated using (true);
+drop policy if exists system_notices_dev_write on system_notices;
+create policy system_notices_dev_write on system_notices
+  for all to authenticated
+  using (
+    (select email from auth.users where id = auth.uid()) = 'youps712@gmail.com'
+  )
+  with check (
+    (select email from auth.users where id = auth.uid()) = 'youps712@gmail.com'
+  );
+do $$ begin
+  alter publication supabase_realtime add table system_notices;
+exception when duplicate_object then null; end $$;

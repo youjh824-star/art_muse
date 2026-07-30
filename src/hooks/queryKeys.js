@@ -14,4 +14,5 @@ export const queryKeys = {
   disconnectedParents: (academyId) => ["disconnected-parents", academyId],
   attendance: (academyId, date) => ["attendance", academyId, date ?? "all"],
   parentLinks: (userId) => ["parent-links", userId],
+  systemNotices: ["system-notices"],
 };
