@@ -32,7 +32,8 @@
     "mobile:build:preview:parent:ios": "cd mobile && npm run build:preview:parent:ios",
     "mobile:build:production:admin": "cd mobile && npm run build:production:admin",
     "mobile:build:production:parent": "cd mobile && npm run build:production:parent",
-    "mobile:build:production": "cd mobile && npm run build:production"
+    "mobile:build:production": "cd mobile && npm run build:production",
+    "notice:post": "node scripts/post-system-notice.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",
