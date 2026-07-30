@@ -1426,6 +1426,18 @@ const FeedbackMessageRow=({feedback:f,showStudent=false,onOpen,onEdit,onDelete,e
 // ─── DEV ACCOUNT ──────────────────────────────────────────
 const DEV_EMAIL = "admin@artmuse.kr";
 
+// ─── 읽음 추적 (localStorage 기반, 배지가 읽으면 사라지도록) ──
+function useReadTracker(storageKey){
+  const[lastRead,setLastRead]=useState(()=>localStorage.getItem(storageKey)??"1970-01-01");
+  useEffect(()=>{setLastRead(localStorage.getItem(storageKey)??"1970-01-01");},[storageKey]);
+  const markRead=useCallback(()=>{
+    const now=new Date().toISOString();
+    localStorage.setItem(storageKey,now);
+    setLastRead(now);
+  },[storageKey]);
+  return[lastRead,markRead];
+}
+
 // ─── TABS ──────────────────────────────────────────────────
 const TABLER_PATHS={
   home:'<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l-2 0l9 -9l9 9l-2 0"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"/><path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6"/>',
@@ -1474,6 +1486,9 @@ const PARENT_TABS=[{id:"phome",icon:"home",label:"홈"},{id:"pfeedback",icon:"me
 // ══════════════════════════════════════════════════════════════
 const AdminHome=({students,schedules,notices,feedbacks,onNavigate,logoSrc,isNativeApp,onExitApp,plan,isMaster})=>{
   const generalNotices=useMemo(()=>notices.filter(n=>getNoticeScope(n)==="general"),[notices]);
+  const[lastNoticeRead,markNoticeRead]=useReadTracker("lastNoticeRead_admin");
+  const noticeUnread=useMemo(()=>generalNotices.filter(n=>(n.createdAt||n.date)>lastNoticeRead).length,[generalNotices,lastNoticeRead]);
+  const openNotice=()=>{markNoticeRead();onNavigate("notice",{keepTab:true});};
   const[nowMins,setNowMins]=useState(()=>new Date().getHours()*60+new Date().getMinutes());
   const unreadFeedback=feedbacks.filter(f=>!f.read).length;
   useEffect(()=>{
@@ -1498,9 +1513,9 @@ const AdminHome=({students,schedules,notices,feedbacks,onNavigate,logoSrc,isNati
           </div>
         </div>
         <div style={{display:"flex",gap:8}}>
-          <div onClick={()=>onNavigate("notice",{keepTab:true})} style={{width:40,height:40,borderRadius:20,background:C.beige,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",position:"relative"}}>
+          <div onClick={openNotice} style={{width:40,height:40,borderRadius:20,background:C.beige,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",position:"relative"}}>
             <TablerIcon name="speakerphone" size={20} color={C.terra}/>
-            {generalNotices.some(n=>n.important)&&<div style={{position:"absolute",top:5,right:5,width:8,height:8,borderRadius:4,background:C.red,border:"2px solid white"}}/>}
+            {noticeUnread>0&&<div style={{position:"absolute",top:5,right:5,width:8,height:8,borderRadius:4,background:C.red,border:"2px solid white"}}/>}
           </div>
           <div onClick={()=>onNavigate("feedback_history",{keepTab:true})} style={{width:40,height:40,borderRadius:20,background:C.beige,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",position:"relative"}}>
             <TablerIcon name="bell" size={20} color={C.terra}/>
@@ -1543,7 +1558,7 @@ const AdminHome=({students,schedules,notices,feedbacks,onNavigate,logoSrc,isNati
       {false /* replaced by banner — see OfflineBanner */}
 
       {/* Notice preview */}
-      <Card onClick={()=>onNavigate("notice")} style={{border:`1px solid ${C.beige}`}}>
+      <Card onClick={()=>{markNoticeRead();onNavigate("notice");}} style={{border:`1px solid ${C.beige}`}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <span style={{flexShrink:0,display:"flex"}}><TablerIcon name="speakerphone" size={20} color={C.terra}/></span>
           <div style={{flex:1,minWidth:0}}>
@@ -4304,8 +4319,11 @@ const SystemNoticeManager=({userEmail})=>{
   );
 };
 
-const AdminMore=({students,onNavigate,academy,logoSrc})=>{
+const AdminMore=({students,onNavigate,academy,logoSrc,userId})=>{
   const appVersion = useAppVersionLabel();
+  const{data:sysNotices=[]}=useSystemNotices();
+  const[lastSysNoticeRead,markSysNoticeRead]=useReadTracker(`lastSystemNoticeRead_${userId||"anon"}`);
+  const sysNoticeUnread=useMemo(()=>sysNotices.filter(n=>n.postedAt>lastSysNoticeRead).length,[sysNotices,lastSysNoticeRead]);
   return (
     <div style={{padding:"0 16px 16px"}}>
       <div style={{fontSize:18,fontWeight:800,color:C.charcoal,padding:"16px 0"}}>더보기</div>
@@ -4331,11 +4349,12 @@ const AdminMore=({students,onNavigate,academy,logoSrc})=>{
           {icon:"building",   label:"학원 정보",       sub:"학원명·연락처",            page:"settings"},
           {icon:"bell",       label:"알림 설정",       sub:"앱 푸시 알림",             page:"settings_notif"},
           {icon:"user",       label:"계정 설정",       sub:"프로필·비밀번호",          page:"settings_account"},
-          {icon:"speakerphone",label:"시스템 공지",    sub:"앱 업데이트·서비스 안내",  page:"system_notice"},
+          {icon:"speakerphone",label:"시스템 공지",    sub:"앱 업데이트·서비스 안내",  page:"system_notice",badge:sysNoticeUnread>0},
         ].map((item,i,arr)=>(
-          <div key={item.label} onClick={()=>item.page&&onNavigate(item.page)} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 16px",borderBottom:i<arr.length-1?`1px solid ${C.beige}`:"none",cursor:item.page?"pointer":"default",opacity:item.page?1:0.55}}>
-            <div style={{width:44,height:44,borderRadius:12,background:C.cream,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+          <div key={item.label} onClick={()=>{if(item.page==="system_notice")markSysNoticeRead();item.page&&onNavigate(item.page);}} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 16px",borderBottom:i<arr.length-1?`1px solid ${C.beige}`:"none",cursor:item.page?"pointer":"default",opacity:item.page?1:0.55}}>
+            <div style={{width:44,height:44,borderRadius:12,background:C.cream,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,position:"relative"}}>
               <TablerIcon name={item.icon} size={22} color={C.terra}/>
+              {item.badge&&<div style={{position:"absolute",top:2,right:2,width:8,height:8,borderRadius:4,background:C.red,border:"2px solid white"}}/>}
             </div>
             <div style={{flex:1}}><div style={{fontSize:15,fontWeight:500,color:C.charcoal}}>{item.label}</div><div style={{fontSize:12,color:C.warm,marginTop:2}}>{item.sub}</div></div>
             <TablerIcon name="chevronRight" size={18} color={C.light}/>
@@ -4360,7 +4379,8 @@ const ParentAppHeader = ({
   onAddChild,
   isNativeApp,
   onExitApp,
-}) => (
+}) => {
+  return (
   <div style={{ padding: "0 16px" }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "16px 0 8px", gap: 10 }}>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -4447,7 +4467,8 @@ const ParentAppHeader = ({
       )}
     </div>
   </div>
-);
+  );
+};
 
 const ParentHome=({student,feedbacks,artworks,notices,attendanceRecords=[],schedules=[],onTab})=>{
   const arts=artworks.filter(a=>a.studentId===student.id);
@@ -4671,18 +4692,23 @@ const ParentFeedback=({student,feedbacks,onMarkRead})=>{
 };
 
 // ── 학부모: 더보기 탭 ────────────────────────────────────────
-const ParentMoreTab=({onTab})=>(
+const ParentMoreTab=({onTab,userId})=>{
+  const{data:sysNotices=[]}=useSystemNotices();
+  const[lastSysNoticeRead,markSysNoticeRead]=useReadTracker(`lastSystemNoticeRead_${userId||"anon"}`);
+  const sysNoticeUnread=useMemo(()=>sysNotices.filter(n=>n.postedAt>lastSysNoticeRead).length,[sysNotices,lastSysNoticeRead]);
+  return(
   <div style={{padding:"16px"}}>
     <div style={{fontSize:18,fontWeight:800,color:C.charcoal,padding:"8px 0 16px"}}>더보기</div>
     {[
       {icon:"photo",        label:"작품",     sub:"그림·작품 갤러리",          tab:"partworks"},
       {icon:"calendar",     label:"일정",     sub:"출결 및 수업 일정",          tab:"pschedule"},
-      {icon:"speakerphone", label:"시스템 공지",sub:"앱 업데이트·서비스 안내",  tab:"psystem_notice"},
+      {icon:"speakerphone", label:"시스템 공지",sub:"앱 업데이트·서비스 안내",  tab:"psystem_notice",badge:sysNoticeUnread>0},
       {icon:"settings",     label:"설정",     sub:"알림·계정 설정",             tab:"psettings"},
     ].map(item=>(
-      <Card key={item.tab} onClick={()=>onTab(item.tab)} style={{display:"flex",alignItems:"center",gap:14,marginBottom:10,cursor:"pointer"}}>
-        <div style={{width:40,height:40,borderRadius:12,background:C.cream,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+      <Card key={item.tab} onClick={()=>{if(item.tab==="psystem_notice")markSysNoticeRead();onTab(item.tab);}} style={{display:"flex",alignItems:"center",gap:14,marginBottom:10,cursor:"pointer"}}>
+        <div style={{width:40,height:40,borderRadius:12,background:C.cream,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,position:"relative"}}>
           <TablerIcon name={item.icon} size={20} color={C.terra}/>
+          {item.badge&&<div style={{position:"absolute",top:2,right:2,width:8,height:8,borderRadius:4,background:C.red,border:"2px solid white"}}/>}
         </div>
         <div style={{flex:1}}>
           <div style={{fontSize:15,fontWeight:500,color:C.charcoal}}>{item.label}</div>
@@ -4692,7 +4718,8 @@ const ParentMoreTab=({onTab})=>(
       </Card>
     ))}
   </div>
-);
+  );
+};
 
 // ── 원장: 학생 채팅 탭 ───────────────────────────────────────
 const AdminStudentChat=({student,academyId,adminId})=>{
@@ -6469,6 +6496,17 @@ export default function App(){
     return (feedbacks ?? []).filter(f => f.student_id === parentStudentId && f.created_at > lastFeedbackRead).length;
   }, [feedbacks, parentStudentId, lastFeedbackRead, isParent]);
 
+  const parentNoticeReadKey = `lastNoticeRead_${parentStudentId}`;
+  const [lastParentNoticeRead, setLastParentNoticeRead] = useState(() => localStorage.getItem(parentNoticeReadKey) ?? "1970-01-01");
+  const markParentNoticeRead = useCallback(() => {
+    const now = new Date().toISOString();
+    localStorage.setItem(parentNoticeReadKey, now);
+    setLastParentNoticeRead(now);
+  }, [parentNoticeReadKey]);
+  useEffect(() => {
+    if (isParent && (parentTab === "pnotice" || subPage === "pnotice")) markParentNoticeRead();
+  }, [isParent, parentTab, subPage, markParentNoticeRead]);
+
   const { data: parentChatUnread = 0 } = useQuery({
     queryKey: ["parent_chat_unread", academyId, parentStudentId],
     queryFn: async () => {
@@ -6509,6 +6547,10 @@ export default function App(){
     ()=>parentChild?filterNoticesForParent(notices, parentChild.id):[],
     [notices, parentChild?.id]
   );
+  const parentNoticeUnread=useMemo(()=>{
+    if(!isParent) return 0;
+    return parentNotices.filter(n=>(n.createdAt||n.date)>lastParentNoticeRead).length;
+  },[parentNotices, lastParentNoticeRead, isParent]);
 
   const linkedStudentIds=useMemo(
     ()=>new Set(linkedParents.map(p=>String(p.studentId))),
@@ -7203,7 +7245,7 @@ export default function App(){
       case"artworks": return <AdminArtworks students={students} artworks={artworks} onUpload={()=>setUploadOpen(true)} onBeforeAfter={()=>setSubPage("beforeafter")} onArtworkFeedback={handleArtworkFeedback} onEditArtwork={setEditArtwork}/>;
       case"attendance": return <AdminAttendanceTab students={students} attendanceRecords={attendanceRecords} academyId={academyId} classTimes={classTimesForAttendance}/>;
       case"chat":     return <AdminDMPage students={students} academyId={academyId} adminId={auth.user?.id}/>;
-      case"more":     return <AdminMore students={students} onNavigate={handleAdminNav} academy={academySafe} logoSrc={logoSrc}/>;
+      case"more":     return <AdminMore students={students} onNavigate={handleAdminNav} academy={academySafe} logoSrc={logoSrc} userId={auth.user?.id}/>;
       default:        return <AdminHome students={students} schedules={schedules} notices={notices} feedbacks={feedbacks} onNavigate={handleAdminNav} logoSrc={logoSrc} isNativeApp={isNativeApp} onExitApp={handleExitApp}/>;
     }
   };
@@ -7254,8 +7296,8 @@ export default function App(){
         linkedChildren={parentChildren}
         activeChildId={parentStudentId ?? parentChild.id}
         onSelectChild={setParentStudentId}
-        onNoticeTap={() => setParentTab("pnotice")}
-        noticeCount={parentNotices.filter((n) => n.important).length || parentNotices.length}
+        onNoticeTap={() => { markParentNoticeRead(); setParentTab("pnotice"); }}
+        noticeCount={parentNoticeUnread}
         onAddChild={() => setParentConnectOpen(true)}
         isNativeApp={isNativeApp}
         onExitApp={handleExitApp}
@@ -7273,7 +7315,7 @@ export default function App(){
       case"pfeedback": return <>{parentHeader}<ParentFeedback key={parentChild.id} student={parentChild} feedbacks={feedbacks} onMarkRead={markFeedbacksRead}/></>;
       case"pnotice":   return <>{parentHeader}<NoticeManager isParent notices={parentNotices} onBack={()=>setParentTab("phome")} onAddNotice={()=>{}} onUpdateNotice={()=>{}} onDeleteNotice={()=>{}}/></>;
       case"pchat":     return <>{parentHeader}<ParentChatPage key={parentChild.id} student={parentChild} academyId={academyId} userId={auth.user?.id}/></>;
-      case"pmore":     return <>{parentHeader}<ParentMoreTab onTab={setParentTab}/></>;
+      case"pmore":     return <>{parentHeader}<ParentMoreTab onTab={setParentTab} userId={auth.user?.id}/></>;
       case"psystem_notice": return (
         <>
           {parentHeader}
