@@ -5495,6 +5495,20 @@ const SettingsPage=({onBack,initTab="academy",academy,onSaveAcademy,onNavigate,o
       <div style={{padding:16}}>
         {tab==="academy"&&(
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            <Card>
+              <div style={{fontSize:11,color:C.warm,marginBottom:10}}>학원 로고</div>
+              <div style={{display:"flex",alignItems:"center",gap:14}}>
+                {logoPreview
+                  ? <img src={logoPreview} alt="학원 로고" style={{width:56,height:56,borderRadius:14,objectFit:"cover",flexShrink:0}}/>
+                  : <div style={{width:56,height:56,borderRadius:14,background:C.cream,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><TablerIcon name="building" size={24} color={C.terra}/></div>
+                }
+                <div style={{flex:1}}>
+                  <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoPick} style={{display:"none"}}/>
+                  <button type="button" onClick={()=>logoInputRef.current?.click()} style={{padding:"8px 16px",borderRadius:10,background:C.beige,border:"none",fontSize:12,fontWeight:600,cursor:"pointer",color:C.charcoal}}>로고 변경</button>
+                  {logoMsg&&<div style={{fontSize:11,color:C.sage,marginTop:6,fontWeight:600}}>{logoMsg}</div>}
+                </div>
+              </div>
+            </Card>
             <Card style={{padding:0}}>
               {[
                 {l:"학원명",v:academyName,set:setAcademyName},
@@ -5614,6 +5628,19 @@ const SettingsPage=({onBack,initTab="academy",academy,onSaveAcademy,onNavigate,o
       <BottomSheet open={!!showDoc} onClose={()=>setShowDoc(null)} title={showDoc==="terms"?"서비스 이용약관":"개인정보처리방침"}>
         <div style={{fontSize:13,color:C.charcoal,lineHeight:1.8,whiteSpace:"pre-wrap"}}>{showDoc==="terms"?TERMS_TEXT:PRIVACY_TEXT}</div>
       </BottomSheet>
+
+      {logoCropSrc&&(
+        <div style={{position:"fixed",inset:0,background:C.cream,zIndex:300,overflowY:"auto",padding:16}}>
+          <ImageCropEditor
+            src={logoCropSrc}
+            title="학원 로고 자르기"
+            fixedAspect={1}
+            onApply={applyLogo}
+            onSkip={()=>applyLogo(logoCropSrc)}
+            onCancel={()=>setLogoCropSrc(null)}
+          />
+        </div>
+      )}
     </div>
   );
 };
@@ -5681,7 +5708,7 @@ const ParentSettingsPage = ({
     flashSaved();
   };
 
-  const handlePwSave = () => {
+  const handlePwSave = async () => {
     if (!pwForm.current.trim() || !pwForm.next.trim()) {
       setPwError("현재 비밀번호와 새 비밀번호를 입력해 주세요.");
       return;
@@ -5694,9 +5721,17 @@ const ParentSettingsPage = ({
       setPwError("새 비밀번호 확인이 일치하지 않습니다.");
       return;
     }
-    setShowPwModal(false);
-    flashSaved();
-    showAlert("비밀번호가 변경되었습니다.");
+    try {
+      const sb = requireSupabase();
+      const { error } = await sb.auth.updateUser({ password: pwForm.next });
+      if (error) throw error;
+      setShowPwModal(false);
+      setPwForm({ current: "", next: "", confirm: "" });
+      flashSaved();
+      showAlert("비밀번호가 변경되었습니다.");
+    } catch (e) {
+      setPwError(authErrorMessage(e));
+    }
   };
 
   const handleLogout = () => {
