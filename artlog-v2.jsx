@@ -4245,7 +4245,7 @@ const UpgradePage = ({ onBack, plan, isMaster }) => {
       features:["학생 최대 80명","AI 피드백 월 300회","무제한 사진","Basic 모든 기능","🎯 입시 성적 관리","레이더 차트 분석"],
       disabled:["비밀 상담 일지"] },
     { id:"premium", icon:"🏆", label:"Premium", price:"₩79,000/월", color:"#C9A84C",
-      features:["무제한 학생","무제한 AI 피드백","무제한 사진","Standard 모든 기능","🔒 비밀 상담 일지","원장/강사 계정 분할"],
+      features:["무제한 학생","무제한 AI 피드백","무제한 사진","Standard 모든 기능","🔒 비밀 상담 일지","원장/강사 계정 분할 (업데이트 예정)"],
       disabled:[] },
   ];
   return (
@@ -7410,7 +7410,18 @@ export default function App(){
         onBack={()=>setSubPage(null)}
       />
     );
-    if(subPage==="stats")           return <AdminStats     onBack={()=>setSubPage(null)} students={students} artworks={artworks} attendanceRecords={attendanceRecords} academy={academySafe}/>;
+    if(subPage==="stats") return (
+      (PLAN_ORDER[plan]??0) >= PLAN_ORDER.basic || isMaster
+        ? <AdminStats onBack={()=>setSubPage(null)} students={students} artworks={artworks} attendanceRecords={attendanceRecords} academy={academySafe}/>
+        : (
+          <>
+            <div style={{padding:"12px 16px 0"}}><button onClick={()=>setSubPage(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.warm}}>←</button></div>
+            <div style={{padding:16}}>
+              <PlanGate requiredPlan="basic" plan={plan} onUpgrade={()=>handleAdminNav("upgrade")}/>
+            </div>
+          </>
+        )
+    );
     if(subPage==="notice") return (
       <NoticeManager
         notices={notices}
