@@ -689,3 +689,8 @@ alter table consultations
   add column if not exists next_consult_date date,
   add column if not exists exam_snapshot     jsonb;
 create index if not exists idx_consultations_tags on consultations using gin(tags);
+
+-- 요금제에 Basic 등급 추가 (free < basic < standard < premium)
+alter table academies drop constraint if exists academies_plan_check;
+alter table academies add constraint academies_plan_check
+  check (plan in ('free','basic','standard','premium'));

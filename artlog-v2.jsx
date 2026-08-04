@@ -172,10 +172,12 @@ const MASTER_EMAIL = import.meta.env.VITE_MASTER_EMAIL || "";
 const MASTER_EMAILS = (import.meta.env.VITE_MASTER_EMAILS || "").split(",").map(e=>e.trim()).filter(Boolean);
 const isMasterEmail = (email) => !!email && (email === MASTER_EMAIL || MASTER_EMAILS.includes(email));
 const PLANS = {
-  free:     { label:"Free",     color:"#8C7B72", price:0,      maxStudents:15, maxPhotosPerMonth:10 },
-  standard: { label:"Standard", color:"#7A9E7E", price:37000,  maxStudents:Infinity, maxPhotosPerMonth:Infinity },
-  premium:  { label:"Premium",  color:"#C9A84C", price:79000,  maxStudents:Infinity, maxPhotosPerMonth:Infinity },
+  free:     { label:"Free",     color:"#8C7B72", price:0,     maxStudents:10, maxAiFeedbackPerMonth:10,  maxPhotosPerMonth:20 },
+  basic:    { label:"Basic",    color:"#6B8CAE", price:19000, maxStudents:30, maxAiFeedbackPerMonth:100, maxPhotosPerMonth:100 },
+  standard: { label:"Standard", color:"#7A9E7E", price:39000, maxStudents:80, maxAiFeedbackPerMonth:300, maxPhotosPerMonth:Infinity },
+  premium:  { label:"Premium",  color:"#C9A84C", price:79000, maxStudents:Infinity, maxAiFeedbackPerMonth:Infinity, maxPhotosPerMonth:Infinity },
 };
+const PLAN_ORDER = { free:0, basic:1, standard:2, premium:3 };
 function getEffectivePlan(userEmail, academyPlan) {
   if (isMasterEmail(userEmail)) return "premium";
   return academyPlan ?? "free";
@@ -185,8 +187,10 @@ function usePlan(userEmail, academy) {
   const isMaster = isMasterEmail(userEmail);
   const planInfo = PLANS[plan] ?? PLANS.free;
   const canDo = (feature) => {
-    if (feature === "ai_feedback" || feature === "templates") return plan !== "free";
-    if (feature === "exam_scores" || feature === "consultations") return plan === "premium";
+    if (feature === "ai_feedback" || feature === "templates") return true;
+    if (feature === "monthly_stats") return (PLAN_ORDER[plan]??0) >= PLAN_ORDER.basic;
+    if (feature === "exam_scores") return (PLAN_ORDER[plan]??0) >= PLAN_ORDER.standard;
+    if (feature === "consultations") return (PLAN_ORDER[plan]??0) >= PLAN_ORDER.premium;
     return true;
   };
   return { plan, planInfo, isMaster, canDo };
@@ -201,8 +205,7 @@ const PlanBadge = ({ plan, isMaster }) => {
   );
 };
 const PlanGate = ({ requiredPlan, plan, onUpgrade, children, fallback }) => {
-  const order = { free:0, standard:1, premium:2 };
-  if ((order[plan]??0) >= (order[requiredPlan]??0)) return children;
+  if ((PLAN_ORDER[plan]??0) >= (PLAN_ORDER[requiredPlan]??0)) return children;
   if (fallback) return fallback;
   return (
     <div style={{padding:16,textAlign:"center",background:"#FAF7F2",borderRadius:12,border:"1px dashed #D4CBC4"}}>
@@ -2547,8 +2550,6 @@ const StudentDetail=({student,feedbacks,artworks,academy,attendanceRecords=[],on
     ()=>attendance.rows.map(formatAttendanceHistoryRow),
     [attendance.rows]
   );
-  const planOrder = { free:0, standard:1, premium:2 };
-  const hasPremium = (planOrder[plan]??0) >= 2;
   const tabs=[
     {id:"info",l:"기본정보"},
     {id:"artworks",l:`작품 ${arts.length}`},
@@ -2647,9 +2648,7 @@ const StudentDetail=({student,feedbacks,artworks,academy,attendanceRecords=[],on
         )}
         {tab==="feedback"&&(
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            <PlanGate requiredPlan="standard" plan={plan} onUpgrade={onUpgrade}>
-              <button onClick={()=>onFeedback(student)} style={{width:"100%",padding:14,borderRadius:12,background:C.terra,color:"white",border:"none",fontSize:14,fontWeight:700,cursor:"pointer"}}>✨ AI 피드백 자동 생성</button>
-            </PlanGate>
+            <button onClick={()=>onFeedback(student)} style={{width:"100%",padding:14,borderRadius:12,background:C.terra,color:"white",border:"none",fontSize:14,fontWeight:700,cursor:"pointer"}}>✨ AI 피드백 자동 생성</button>
             <button onClick={()=>onManualFeedback(student)} style={{width:"100%",padding:14,borderRadius:12,background:C.white,color:C.charcoal,border:`2px solid ${C.sand}`,fontSize:14,fontWeight:700,cursor:"pointer"}}>✏️ 피드백 직접 작성</button>
             {fbs.map(f=>(
               <FeedbackMessageRow
@@ -2663,7 +2662,7 @@ const StudentDetail=({student,feedbacks,artworks,academy,attendanceRecords=[],on
           </div>
         )}
         {tab==="exam"&&(
-          <PlanGate requiredPlan="premium" plan={plan} onUpgrade={onUpgrade}>
+          <PlanGate requiredPlan="standard" plan={plan} onUpgrade={onUpgrade}>
             <ExamScoreManager student={student} academyId={academyId}/>
           </PlanGate>
         )}
@@ -4237,13 +4236,16 @@ const AdminFeedbackHistory=({feedbacks,onBack,onUpdateFeedback,onDeleteFeedback}
 const UpgradePage = ({ onBack, plan, isMaster }) => {
   const planDefs = [
     { id:"free", icon:"🌱", label:"Free", price:"무료", color:"#8C7B72",
-      features:["학생 최대 15명","월 사진 10장","직접 피드백 작성"],
-      disabled:["AI 피드백","피드백 템플릿","입시 성적 관리","비밀 상담 일지"] },
-    { id:"standard", icon:"⭐", label:"Standard", price:"₩37,000/월", color:"#7A9E7E", highlight:true,
-      features:["무제한 학생","무제한 사진","✨ AI 피드백 자동 생성","피드백 템플릿","월별 통계"],
+      features:["학생 최대 10명","AI 피드백 월 10회","월 사진 20장","직접 피드백 작성","피드백 템플릿"],
+      disabled:["월별 통계","입시 성적 관리","비밀 상담 일지"] },
+    { id:"basic", icon:"📘", label:"Basic", price:"₩19,000/월", color:"#6B8CAE",
+      features:["학생 최대 30명","AI 피드백 월 100회","월 사진 100장","피드백 템플릿","월별 통계"],
       disabled:["입시 성적 관리","비밀 상담 일지"] },
+    { id:"standard", icon:"⭐", label:"Standard", price:"₩39,000/월", color:"#7A9E7E", highlight:true,
+      features:["학생 최대 80명","AI 피드백 월 300회","무제한 사진","Basic 모든 기능","🎯 입시 성적 관리","레이더 차트 분석"],
+      disabled:["비밀 상담 일지"] },
     { id:"premium", icon:"🏆", label:"Premium", price:"₩79,000/월", color:"#C9A84C",
-      features:["Standard 모든 기능","🎯 입시 성적 관리","레이더 차트 분석","🔒 비밀 상담 일지","전용 고객 지원"],
+      features:["무제한 학생","무제한 AI 피드백","무제한 사진","Standard 모든 기능","🔒 비밀 상담 일지","원장/강사 계정 분할"],
       disabled:[] },
   ];
   return (
@@ -5743,16 +5745,16 @@ const SettingsPage=({onBack,initTab="academy",academy,onSaveAcademy,onNavigate,o
                     ? <div style={{fontSize:15,fontWeight:800,color:"white"}}>🛠 개발자 계정 (Premium 전체 기능)</div>
                     : <div style={{fontSize:18,fontWeight:800,color:"white"}}>{PLANS[plan]?.label ?? "Free"} {plan==="free"?"(무료)":`₩${(PLANS[plan]?.price||0).toLocaleString()}/월`}</div>
                   }
-                  {plan==="free"&&!isMaster&&<div style={{fontSize:12,color:"rgba(255,255,255,0.8)",marginTop:4}}>학생 최대 {PLANS.free.maxStudents}명 · 월 사진 {PLANS.free.maxPhotosPerMonth}장</div>}
-                  {plan!=="free"&&!isMaster&&<div style={{fontSize:12,color:"rgba(255,255,255,0.8)",marginTop:4}}>무제한 학생 · 무제한 작품</div>}
+                  {Number.isFinite(PLANS[plan]?.maxStudents)&&!isMaster&&<div style={{fontSize:12,color:"rgba(255,255,255,0.8)",marginTop:4}}>학생 최대 {PLANS[plan].maxStudents}명 · 월 AI피드백 {PLANS[plan].maxAiFeedbackPerMonth}회 · 월 사진 {Number.isFinite(PLANS[plan].maxPhotosPerMonth)?`${PLANS[plan].maxPhotosPerMonth}장`:"무제한"}</div>}
+                  {!Number.isFinite(PLANS[plan]?.maxStudents)&&!isMaster&&<div style={{fontSize:12,color:"rgba(255,255,255,0.8)",marginTop:4}}>무제한 학생 · 무제한 AI피드백 · 무제한 사진</div>}
                 </div>
                 <button onClick={()=>onNavigate?.("upgrade")} style={{padding:"8px 14px",borderRadius:20,background:"rgba(255,255,255,0.2)",border:"1px solid rgba(255,255,255,0.4)",color:"white",fontSize:12,fontWeight:600,cursor:"pointer"}}>플랜 보기</button>
               </div>
-              {plan==="free"&&!isMaster&&(
+              {Number.isFinite(PLANS[plan]?.maxStudents)&&!isMaster&&(
                 <div style={{marginTop:12}}>
-                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:11,color:"rgba(255,255,255,0.75)"}}>학생</span><span style={{fontSize:11,color:"white",fontWeight:600}}>{studentCount} / {PLANS.free.maxStudents}명</span></div>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:11,color:"rgba(255,255,255,0.75)"}}>학생</span><span style={{fontSize:11,color:"white",fontWeight:600}}>{studentCount} / {PLANS[plan].maxStudents}명</span></div>
                   <div style={{height:6,background:"rgba(255,255,255,0.2)",borderRadius:3}}>
-                    <div style={{height:"100%",borderRadius:3,background:"white",width:`${Math.min(100,Math.round(studentCount/PLANS.free.maxStudents*100))}%`}}/>
+                    <div style={{height:"100%",borderRadius:3,background:"white",width:`${Math.min(100,Math.round(studentCount/PLANS[plan].maxStudents*100))}%`}}/>
                   </div>
                 </div>
               )}
@@ -7317,8 +7319,9 @@ export default function App(){
   }, [noticeMut]);
 
   const onAddStudent = useCallback(async (s) => {
-    if (plan === "free" && !isMaster && students.length >= PLANS.free.maxStudents) {
-      showAlert(`Free 플랜은 학생 최대 ${PLANS.free.maxStudents}명까지 등록할 수 있습니다.\n더 보기 → 플랜 업그레이드를 이용해 주세요.`);
+    const maxStudents = PLANS[plan]?.maxStudents ?? Infinity;
+    if (!isMaster && Number.isFinite(maxStudents) && students.length >= maxStudents) {
+      showAlert(`${PLANS[plan]?.label ?? "현재"} 플랜은 학생 최대 ${maxStudents}명까지 등록할 수 있습니다.\n더 보기 → 플랜 업그레이드를 이용해 주세요.`);
       throw new Error("plan_limit");
     }
     try {
