@@ -4287,7 +4287,7 @@ const UpgradePage = ({ onBack, plan, isMaster }) => {
                 </div>
               ))}
               {plan!==p.id&&p.id!=="free"&&(
-                <button onClick={()=>showAlert("업그레이드 문의: admin@artmuse.kr")}
+                <button onClick={()=>showAlert("업그레이드 문의: artlogapp@gmail.com")}
                   style={{width:"100%",marginTop:12,padding:"10px 0",borderRadius:10,background:p.color,color:"white",border:"none",fontSize:13,fontWeight:700,cursor:"pointer"}}>
                   {p.label} 시작하기
                 </button>
@@ -4297,7 +4297,7 @@ const UpgradePage = ({ onBack, plan, isMaster }) => {
         ))}
         <Card style={{padding:14,textAlign:"center",background:C.beige}}>
           <div style={{fontSize:12,color:C.warm,marginBottom:4}}>문의 및 업그레이드 신청</div>
-          <div style={{fontSize:14,fontWeight:700,color:C.terra}}>admin@artmuse.kr</div>
+          <div style={{fontSize:14,fontWeight:700,color:C.terra}}>artlogapp@gmail.com</div>
         </Card>
       </div>
     </div>
