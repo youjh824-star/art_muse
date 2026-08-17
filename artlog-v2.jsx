@@ -493,19 +493,37 @@ async function requestAIFeedback(student, artwork, lessonNotes, academy) {
   const prompt = buildAIFeedbackPrompt(student, artwork, lessonNotes, academy);
   const imageUrl = artwork?.photoUri || undefined;
 
+  const viaNative = async (withImage) => {
+    const data = await window.ArtlogNative.generateFeedback({ prompt, imageUrl: withImage ? imageUrl : undefined });
+    return typeof data === "string" ? data : data?.text;
+  };
+
   if (window.ArtlogNative?.generateFeedback) {
     try {
-      const data = await window.ArtlogNative.generateFeedback({ prompt, imageUrl });
-      return typeof data === "string" ? data : data?.text;
+      return await viaNative(true);
     } catch (err) {
+      // 이미지 첨부 요청이 실패했다면 이미지 없이 텍스트만으로 한 번 더 시도
+      if (imageUrl) {
+        try { return await viaNative(false); } catch { /* fall through */ }
+      }
       if (import.meta.env.VITE_OPENAI_API_KEY) {
-        return fetchOpenAIChat(prompt, imageUrl);
+        try {
+          return await fetchOpenAIChat(prompt, imageUrl);
+        } catch {
+          return fetchOpenAIChat(prompt);
+        }
       }
       throw err;
     }
   }
 
-  return fetchOpenAIChat(prompt, imageUrl);
+  try {
+    return await fetchOpenAIChat(prompt, imageUrl);
+  } catch (err) {
+    // 이미지 첨부 요청이 실패했다면 이미지 없이 텍스트만으로 한 번 더 시도
+    if (imageUrl) return fetchOpenAIChat(prompt);
+    throw err;
+  }
 }
 
 // ─── Data ──────────────────────────────────────────────────
