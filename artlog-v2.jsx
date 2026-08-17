@@ -396,89 +396,75 @@ const LESSON_NOTE_FIELDS = [
   { key: "attitude", label: "수업 태도", ph: "예: 끝까지 집중, 질문 많음" },
 ];
 
-function buildAIFeedbackPrompt(student, artwork, lessonNotes = {}) {
+function buildAIFeedbackPrompt(student, artwork, lessonNotes = {}, academy = {}) {
   const ageLabel = studentAgeLabel(student);
-  let contextBlock = "";
-  if (artwork) {
-    contextBlock = `[선택 작품]
-- 작품명: ${artwork.title} (${artwork.medium ?? ""})
-- 작품 설명: ${artwork.desc ?? "없음"}
-- 진행률: ${artwork.progress ?? 0}%`;
-    const noteLines = LESSON_NOTE_FIELDS
-      .map(({ key, label }) => lessonNotes[key]?.trim() ? `- ${label}: ${lessonNotes[key].trim()}` : null)
-      .filter(Boolean);
-    if (noteLines.length) {
-      contextBlock += `\n\n[원장 추가 메모]\n${noteLines.join("\n")}`;
-    }
-  } else {
-    const noteLines = LESSON_NOTE_FIELDS
-      .map(({ key, label }) => lessonNotes[key]?.trim() ? `- ${label}: ${lessonNotes[key].trim()}` : null)
-      .filter(Boolean);
-    contextBlock = noteLines.length
-      ? `[원장이 입력한 수업 메모]\n${noteLines.join("\n")}`
-      : `[작품 미선택 · 수업 메모 없음]\n학생 성향과 일반적인 수업 흐름을 바탕으로 작성하되, 구체적 장면은 지어내지 마세요.`;
-  }
+  const academyName = academy?.name || "아트뮤즈";
+  const instructorName = academy?.instructorName || "선생님";
+  const lessonTopic = lessonNotes?.topic?.trim() || artwork?.title || "오늘의 미술 수업";
 
-  return `학부모에게 전달되는 ${student.name}(${ageLabel}) 학생의 작품 피드백을 작성하세요.
+  const noteLines = LESSON_NOTE_FIELDS
+    .filter(f => f.key !== "topic")
+    .map(({ key, label }) => lessonNotes[key]?.trim() ? `- ${label}: ${lessonNotes[key].trim()}` : null)
+    .filter(Boolean);
 
-[학생 정보]
-- 이름: ${student.name}
-- 나이·학년: ${ageLabel}
-- 학교: ${student.school ?? ""}
-- 성향: ${student.tags.join(", ") || "꾸준히 수업에 참여"}
+  const artworkBlock = artwork
+    ? `- 작품명: ${artwork.title} (${artwork.medium ?? ""})\n- 작품 설명: ${artwork.desc ?? "없음"}\n- 진행률: ${artwork.progress ?? 0}%`
+    : "- 첨부된 작품 없음 (아래 수업 메모를 바탕으로 작성)";
+
+  return `당신은 미술 학원의 전문 강사입니다. 학생이 제출한 작품 이미지를 보고
+학부모에게 "발송"할 메시지를 작성합니다. 이 결과물은 학부모가 앱 알림 또는
+카카오톡으로 바로 받아보는 완성된 메시지이며, 내부 문서가 아닙니다.
+
+[역할]
+- 아동·청소년 미술 교육 전문가
+- 학원명: ${academyName}
+- 대상 학생 연령: ${ageLabel} (이미지로 추정 가능하면 이미지 기준으로 판단)
+- 수업 주제/과제: ${lessonTopic}
+
+[참고 정보 — 작품/수업 메모]
+${artworkBlock}
+${noteLines.length ? noteLines.join("\n") : ""}
 ${student.memo ? `- 선생님 메모: ${student.memo}` : ""}
 
-${contextBlock}
+[평가 기준 — 아래 4개 항목을 균형 있게 다룰 것]
+1. 관찰력·표현력: 대상을 얼마나 세심하게 관찰하고 표현했는가
+2. 색채 활용: 색 선택, 배색의 조화, 감정 표현과의 연결
+3. 구도·공간 구성: 화면 배치, 여백, 비례
+4. 창의성: 본인만의 아이디어나 시도가 드러나는 지점
 
-[중요]
-AI가 작성한 느낌이 나지 않아야 합니다.
+[작성 원칙 — 전문성과 다정함을 함께]
+- 미술 교육 전문 용어를 정확히 사용하되, 괄호로 쉬운 풀이를 1회 병기
+  (예: "형태 관찰력", "색채 대비(밝고 어두운 색을 나란히 써서 생기는 효과)",
+  "화면 구성(그림 요소들을 배치하는 방식)")
+- 막연한 감상("잘 그렸어요", "예뻐요") 금지. 반드시 발달 단계·기법 관점의
+  구체적 관찰로 서술 (예: "인물 비례를 실제와 가깝게 조정하려 시도한 흔적이
+  보입니다" / "보색 대비를 활용해 화면에 시각적 긴장감을 주었습니다")
+- 잘한 점은 "무엇을 → 어떤 기법/의도로 → 어떤 효과가 났는지" 3단 구조로 서술
+- 개선 제안은 1개, 해당 연령대 발달 단계에서 자연스러운 다음 학습 목표로
+  제시 (지적이 아닌 "다음 성장 단계" 프레이밍)
+- 어휘는 전문적으로, 어조는 다정하게: 딱딱한 보고서체(예: "~하였음", "~로
+  판단됨")는 피하고 강사가 학부모에게 직접 이야기하듯 부드러운 존댓말 사용.
+  아이에 대한 관심과 애정이 문장 전반에 느껴지도록 하되, 애칭·감탄사·
+  이모지로 때우지 말고 관찰의 구체성으로 다정함을 표현할 것
+- 문단 중 한 곳에는 아이의 노력이나 태도에 대한 짧은 인간적 코멘트를
+  자연스럽게 포함 (예: "여러 번 색을 겹쳐 칠하며 신중하게 완성해 나가는
+  모습이 인상적이었습니다")
+- 분량: 4~6문장, 존댓말 유지
+- 내부 라벨(총평/잘한점 등 대괄호 표기)을 그대로 노출하지 말고, 자연스럽게 이어지는
+  메시지 문장으로 풀어 쓸 것 (학부모가 받는 실제 메시지이므로)
 
-따라서 아래 특징을 반드시 지키세요.
+[출력 형식 — 아래 흐름으로 전문 강사의 관찰 보고 형태의 메시지 작성]
+1. 인사말: "안녕하세요, ${student.name} 학부모님." 로 시작
+2. 수업 주제·과제 명시: 오늘 수업에서 다룬 기법/주제를 한 문장으로 소개
+3. 관찰 소견: 작품에서 확인된 기법적 성취를 "무엇을·어떻게·효과"
+   3단 구조로 1~2개 서술 (전문 용어 + 괄호 풀이 포함)
+4. 다음 학습 목표: 발달 단계상 다음 단계로 자연스럽게 이어지는 제안 1개
+5. 마무리 + 발신: 간결한 인사 후 "- ${academyName} ${instructorName} 드림" 으로 종결
 
-* 실제 미술 선생님이 수업 후 학부모에게 보내는 자연스러운 말투 사용
-* 과하게 완벽하거나 정돈된 문장 금지
-* 모든 문장을 칭찬으로만 채우지 말 것
-* 학생마다 관찰 포인트를 다르게 작성
-* 실제 수업을 본 사람처럼 구체적으로 작성
-* 결과뿐 아니라 작업 과정과 태도도 언급
-* 억지 감동 표현, 과한 리액션 금지
-* 같은 표현 반복 금지
-* "너무 잘했어요", "최고예요" 같은 과장 표현 최소화
-* 자연스럽고 담백한 학원 피드백 느낌 유지
-
-[피드백 구성]
-반드시 아래 흐름을 자연스럽게 포함:
-
-1. 오늘 진행한 수업/주제
-2. 학생이 집중해서 작업한 부분
-3. 잘된 표현 또는 성장한 부분
-4. 어려워했던 부분 또는 보완점
-5. 다음 수업에서 기대되는 점
-6. 마무리 총평
-
-[문체 규칙]
-
-* 문장은 총 5~6문장
-* 학부모가 읽기에 부드럽고 신뢰감 있는 톤
-* 문장 길이를 조금씩 다르게 작성
-* 너무 모범답안처럼 쓰지 말 것
-* 실제 사람이 즉석에서 작성한 느낌 유지
-* 학생마다 어휘와 문장 흐름을 조금씩 다르게 할 것
-
-[좋은 표현 예시]
-
-* 오늘은 형태를 끝까지 집중해서 잡아보려고 했어요.
-* 색을 여러 번 덧입히면서 표현이 훨씬 자연스러워졌습니다.
-* 중간에 어려워하는 부분도 있었지만 스스로 수정해보려는 모습이 좋았어요.
-* 배경까지 신경 쓰면서 화면 구성이 안정적으로 정리됐습니다.
-* 관찰하면서 표현하려는 태도가 점점 좋아지고 있어요.
-* 다음 시간에는 명암 표현을 조금 더 깊게 연습해보면 좋겠습니다.
-
-[출력 형식]
-불필요한 제목 없이 바로 피드백만 작성하세요.`;
+불필요한 제목 없이 바로 완성된 메시지 본문만 작성하세요.`;
 }
 
-async function fetchOpenAIChat(prompt) {
+async function fetchOpenAIChat(prompt, imageUrl) {
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
   const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
   const url = `${SUPABASE_URL}/functions/v1/openai-proxy`;
@@ -490,7 +476,7 @@ async function fetchOpenAIChat(prompt) {
       "apikey": SUPABASE_ANON,
       "Authorization": `Bearer ${SUPABASE_ANON}`,
     },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ prompt, imageUrl: imageUrl || undefined }),
   });
 
   const data = await res.json().catch(() => ({}));
@@ -503,22 +489,23 @@ async function fetchOpenAIChat(prompt) {
   return text;
 }
 
-async function requestAIFeedback(student, artwork, lessonNotes) {
-  const prompt = buildAIFeedbackPrompt(student, artwork, lessonNotes);
+async function requestAIFeedback(student, artwork, lessonNotes, academy) {
+  const prompt = buildAIFeedbackPrompt(student, artwork, lessonNotes, academy);
+  const imageUrl = artwork?.photoUri || undefined;
 
   if (window.ArtlogNative?.generateFeedback) {
     try {
-      const data = await window.ArtlogNative.generateFeedback({ prompt });
+      const data = await window.ArtlogNative.generateFeedback({ prompt, imageUrl });
       return typeof data === "string" ? data : data?.text;
     } catch (err) {
       if (import.meta.env.VITE_OPENAI_API_KEY) {
-        return fetchOpenAIChat(prompt);
+        return fetchOpenAIChat(prompt, imageUrl);
       }
       throw err;
     }
   }
 
-  return fetchOpenAIChat(prompt);
+  return fetchOpenAIChat(prompt, imageUrl);
 }
 
 // ─── Data ──────────────────────────────────────────────────
@@ -3977,7 +3964,7 @@ const FeedbackNotifyControls = ({ notifyMode, setNotifyMode, notifyDate, setNoti
   );
 };
 
-const FeedbackModal=({student,artworks,mode="ai",initialArtId=null,onClose,onSend})=>{
+const FeedbackModal=({student,artworks,mode="ai",initialArtId=null,academy,onClose,onSend})=>{
   const[loading,setLoading]=useState(false);
   const[result,setResult]=useState("");
   const[manualText,setManualText]=useState("");
@@ -4046,7 +4033,7 @@ const FeedbackModal=({student,artworks,mode="ai",initialArtId=null,onClose,onSen
     setLoading(true);
     setResult("");
     try{
-      setResult(await requestAIFeedback(student, selectedArt, lessonNotes));
+      setResult(await requestAIFeedback(student, selectedArt, lessonNotes, academy));
     }catch(err){
       setResult(err.message||"API 연결 오류. 잠시 후 다시 시도해 주세요.");
     }
@@ -7652,7 +7639,7 @@ export default function App(){
       {attendSt  &&<OfflineAttendModal student={attendSt} online={online} onClose={()=>setAttendSt(null)} onSave={onAttendSave}/>}
       {uploadOpen &&<UploadModal onClose={()=>setUploadOpen(false)} onSave={onUploadSave} students={students}/>}
       {parentUploadOpen &&<UploadModal presetStudent={parentChild} parentMode onClose={()=>setParentUploadOpen(false)} onSave={onUploadSave} students={students}/>}
-      {feedbackSt&&<FeedbackModal student={feedbackSt} artworks={artworks} mode={feedbackMode} initialArtId={feedbackInitialArtId} onClose={closeFeedbackModal} onSend={onAddFeedback}/>}
+      {feedbackSt&&<FeedbackModal student={feedbackSt} artworks={artworks} mode={feedbackMode} initialArtId={feedbackInitialArtId} academy={academySafe} onClose={closeFeedbackModal} onSend={onAddFeedback}/>}
       {editArtwork&&<ArtworkPhotoEditModal artwork={editArtwork} onClose={()=>setEditArtwork(null)} onSave={handleEditArtworkPhoto}/>}
       {editStudent&&<StudentRegisterModal initial={editStudent} onClose={()=>setEditStudent(null)} onSave={async updated=>{try{await onUpdateStudent(editStudent.id,updated);setEditStudent(null);}catch{/* alert in handler */}}} academyOptions={academyOptionsSafe} onUpdateAcademyOptions={handleUpdateAcademyOptions}/>}
       {parentConnectOpen&&<ParentConnectSheet onClose={()=>setParentConnectOpen(false)} onConnect={handleConnectParentInvite}/>}

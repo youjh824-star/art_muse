@@ -69,7 +69,7 @@ export async function handleBridgeMessage(message, postToWeb) {
         result = { ok: true };
         break;
       case BRIDGE_ACTIONS.GENERATE_AI_FEEDBACK:
-        result = { text: await generateParentFeedback(payload?.prompt) };
+        result = { text: await generateParentFeedback(payload?.prompt, payload?.imageUrl) };
         break;
       case BRIDGE_ACTIONS.EXPORT_BACKUP:
         await exportBackupJson(payload);

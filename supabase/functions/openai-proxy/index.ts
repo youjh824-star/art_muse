@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
     );
   }
 
-  let body: { prompt?: string; model?: string };
+  let body: { prompt?: string; model?: string; imageUrl?: string };
   try {
     body = await req.json();
   } catch {
@@ -64,13 +64,21 @@ Deno.serve(async (req) => {
     });
   }
 
-  const { prompt, model = "gpt-4o-mini" } = body;
+  const { prompt, model = "gpt-4o-mini", imageUrl } = body;
   if (!prompt || typeof prompt !== "string") {
     return new Response(JSON.stringify({ error: "prompt가 필요합니다." }), {
       status: 400,
       headers: { ...corsHeaders(origin), "Content-Type": "application/json" },
     });
   }
+
+  // 작품 이미지가 있으면 비전(vision) 입력으로 함께 전달
+  const userContent = imageUrl
+    ? [
+        { type: "text", text: prompt },
+        { type: "image_url", image_url: { url: imageUrl } },
+      ]
+    : prompt;
 
   const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -82,7 +90,7 @@ Deno.serve(async (req) => {
       model,
       messages: [
         { role: "system", content: AI_FEEDBACK_SYSTEM },
-        { role: "user", content: prompt },
+        { role: "user", content: userContent },
       ],
       max_tokens: 1500,
     }),

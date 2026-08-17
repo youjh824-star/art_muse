@@ -38,7 +38,7 @@ function resolveModel() {
   );
 }
 
-export async function generateParentFeedback(prompt) {
+export async function generateParentFeedback(prompt, imageUrl) {
   const proxyUrl = resolveProxyUrl();
   if (!proxyUrl) {
     throw new Error(
@@ -51,7 +51,7 @@ export async function generateParentFeedback(prompt) {
   const res = await fetch(proxyUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, model }),
+    body: JSON.stringify({ prompt, model, imageUrl: imageUrl || undefined }),
   });
 
   const data = await res.json().catch(() => ({}));
