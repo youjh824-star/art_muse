@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { requireSupabase } from "../lib/supabase.js";
 import { queryKeys } from "./queryKeys.js";
+import { logBackgroundError } from "../lib/reportError.js";
 
 const STATUS_LABELS = { present: "출석", late: "지각", absent: "결석", makeup: "보강" };
 
@@ -19,12 +20,17 @@ async function sendAttendancePush({ academyId, studentId, studentName, status })
     const tokens = (rows ?? []).map(r => r.push_token).filter(Boolean);
     if (!tokens.length) return;
     const label = STATUS_LABELS[status] ?? status;
-    await fetch(_PUSH_URL, {
+    const res = await fetch(_PUSH_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${_PUSH_KEY}` },
       body: JSON.stringify({ tokens, title: `${studentName} ${label}`, body: "아트뮤즈에서 출결 처리되었습니다.", data: { type: "attendance" } }),
     });
-  } catch { /* silent */ }
+    if (!res.ok) {
+      throw new Error(`push-notify HTTP ${res.status}`);
+    }
+  } catch (e) {
+    logBackgroundError("attendance_push", e);
+  }
 }
 
 export function useAttendance(academyId, { refetchInterval = false } = {}) {

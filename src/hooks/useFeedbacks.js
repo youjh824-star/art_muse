@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { requireSupabase } from "../lib/supabase.js";
 import { mapFeedback } from "../lib/mappers.js";
 import { queryKeys } from "./queryKeys.js";
+import { logBackgroundError } from "../lib/reportError.js";
 
 async function sendFeedbackPush({ academyId, studentId, studentName }) {
   try {
@@ -14,10 +15,16 @@ async function sendFeedbackPush({ academyId, studentId, studentName }) {
       .not("push_token", "is", null);
     const tokens = (rows ?? []).map(r => r.push_token).filter(Boolean);
     if (!tokens.length) return;
-    await sb.functions.invoke("push-notify", {
+    const { data: pushResult, error } = await sb.functions.invoke("push-notify", {
       body: { tokens, title: "새 피드백이 도착했습니다", body: `${studentName} 학생의 선생님 피드백을 확인해 보세요.`, data: { type: "feedback" } },
     });
-  } catch { /* silent */ }
+    if (error) throw error;
+    if (!pushResult?.sent) {
+      throw new Error(`sent=0 (${pushResult?.reason ?? "unknown"})`);
+    }
+  } catch (e) {
+    logBackgroundError("feedback_push", e);
+  }
 }
 
 export function useFeedbacks(academyId, { refetchInterval = false } = {}) {

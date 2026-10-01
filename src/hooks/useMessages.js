@@ -54,7 +54,7 @@ async function dispatchChatPush({ academyId, studentId, senderRole, content, stu
   const preview = String(content ?? "").trim();
   const body = preview.length > 50 ? `${preview.slice(0, 50)}…` : preview;
   if (senderRole === "admin") {
-    await sendChatPush({
+    return sendChatPush({
       academyId,
       studentId,
       target: "parents",
@@ -62,9 +62,8 @@ async function dispatchChatPush({ academyId, studentId, senderRole, content, stu
       body,
       data: { type: "message", studentId },
     });
-    return;
   }
-  await sendChatPush({
+  return sendChatPush({
     academyId,
     studentId,
     target: "admin",
@@ -122,13 +121,19 @@ export function useMessageMutations(academyId, studentId, { studentName } = {}) 
     onSuccess: async (row) => {
       invalidate();
       try {
-        await dispatchChatPush({
+        const pushResult = await dispatchChatPush({
           academyId,
           studentId,
           senderRole: row.sender_role,
           content: row.content,
           studentName,
         });
+        if (!pushResult?.sent) {
+          logBackgroundError(
+            "chat_push_not_sent",
+            new Error(`sent=0 (${pushResult?.reason ?? "unknown"})`)
+          );
+        }
       } catch (e) {
         logBackgroundError("chat_push", e);
       }
@@ -139,13 +144,14 @@ export function useMessageMutations(academyId, studentId, { studentName } = {}) 
     mutationFn: async (readerRole) => {
       const sb = requireSupabase();
       const senderRole = readerRole === "admin" ? "parent" : "admin";
-      await sb
+      const { error } = await sb
         .from("messages")
         .update({ is_read: true })
         .eq("academy_id", academyId)
         .eq("student_id", studentId)
         .eq("sender_role", senderRole)
         .eq("is_read", false);
+      if (error) throw error;
     },
     onSuccess: invalidate,
   });

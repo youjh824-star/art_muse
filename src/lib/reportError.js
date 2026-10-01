@@ -1,12 +1,10 @@
 import { dbErrorMessage } from "./authErrors.js";
 import { showAlert } from "./showAlert.js";
 
-/** 백그라운드 작업 실패 — 개발 콘솔에만 기록 */
+/** 백그라운드 작업 실패 — 콘솔에 기록 */
 export function logBackgroundError(label, err) {
   const msg = err?.message ?? String(err ?? "");
-  if (import.meta.env?.DEV) {
-    console.warn(`[ArtLog] ${label}:`, msg);
-  }
+  console.warn(`[ArtLog] ${label}:`, msg);
 }
 
 /** 사용자 액션 실패 — 커스텀 모달로 표시 */

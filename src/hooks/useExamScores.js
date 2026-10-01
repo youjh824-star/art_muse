@@ -13,7 +13,7 @@ function mapExamScore(row) {
     examDate: row.exam_date,
     practicalScores: row.practical_scores ?? {},
     suneungScore: row.suneung_score ?? null,
-    naesинGrade: row.naesin_grade ?? null,
+    naesinGrade: row.naesin_grade ?? null,
     targetSchools: row.target_schools ?? [],
     memo: row.memo ?? "",
     createdAt: row.created_at,
@@ -54,7 +54,7 @@ export function useExamScoreMutations(academyId, studentId) {
           exam_date: payload.examDate,
           practical_scores: payload.practicalScores ?? {},
           suneung_score: payload.suneungScore ?? null,
-          naesin_grade: payload.naesинGrade ?? null,
+          naesin_grade: payload.naesinGrade ?? null,
           target_schools: payload.targetSchools ?? [],
           memo: payload.memo ?? "",
         })
@@ -75,7 +75,7 @@ export function useExamScoreMutations(academyId, studentId) {
           exam_date: patch.examDate,
           practical_scores: patch.practicalScores,
           suneung_score: patch.suneungScore ?? null,
-          naesin_grade: patch.naesинGrade ?? null,
+          naesin_grade: patch.naesinGrade ?? null,
           target_schools: patch.targetSchools ?? [],
           memo: patch.memo ?? "",
         })
